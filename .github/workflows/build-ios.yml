@@ -1,0 +1,210 @@
+name: Build iOS IPA (Unsigned)
+
+# Manual only: this produces an unsigned .app packaged as a .ipa, intended
+# to be signed afterward on your own machine (e.g. with Sideloadly). There's
+# no reason to run it on every push, so it's dispatch-only.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-ios-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROJECT_PATH: SleepTimer.xcodeproj
+  SCHEME: SleepTimer
+  CONFIGURATION: Release
+  APP_NAME: SleepTimer
+  ARCHIVE_PATH: build/ios/SleepTimer.xcarchive
+  IPA_DIR: build/ios
+  IPA_PATH: build/ios/SleepTimer.ipa
+  LOG_DIR: build/logs
+
+jobs:
+  build:
+    name: Archive & package unsigned IPA
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select an Xcode 26.x toolchain (iOS/watchOS 26 SDK required)
+        run: |
+          set -euo pipefail
+          echo "Xcode installations on this runner:"
+          ls -d /Applications/Xcode*.app 2>/dev/null || true
+
+          # This project's deployment target is iOS/watchOS 26.0, which requires
+          # the SDK that ships with Xcode 26.x. GitHub's macOS runners currently
+          # default xcode-select to an older Xcode (e.g. 16.x) even when newer
+          # 26.x versions are installed side-by-side, so we must select explicitly.
+          # We deliberately pick the newest *installed, non-beta* Xcode rather than
+          # downloading one: downloading a new Xcode normally requires an Apple ID
+          # login, which this workflow must not depend on.
+          shopt -s nullglob
+          candidates=(/Applications/Xcode_*.app)
+          shopt -u nullglob
+
+          stable_candidates=()
+          for candidate in "${candidates[@]}"; do
+            case "$candidate" in
+              *[Bb]eta*) continue ;;
+            esac
+            stable_candidates+=("$candidate")
+          done
+
+          if [ "${#stable_candidates[@]}" -eq 0 ]; then
+            echo "::error::No non-beta /Applications/Xcode_*.app installations found on this runner. Cannot select a toolchain."
+            exit 1
+          fi
+
+          SELECTED_XCODE="$(printf '%s\n' "${stable_candidates[@]}" | sort -V | tail -n 1)"
+
+          echo "Selecting: $SELECTED_XCODE"
+          sudo xcode-select -s "$SELECTED_XCODE"
+
+      - name: Show build environment
+        run: |
+          echo "== xcode-select path =="
+          xcode-select -p
+          echo
+          echo "== Xcode version =="
+          xcodebuild -version
+          echo
+          echo "== Swift version =="
+          swift --version
+          echo
+          echo "== Available SDKs =="
+          xcodebuild -showsdks
+          echo
+          echo "== Selected build parameters =="
+          echo "Project:       $PROJECT_PATH"
+          echo "Scheme:        $SCHEME"
+          echo "Configuration: $CONFIGURATION"
+          echo "Archive path:  $ARCHIVE_PATH"
+          echo "IPA path:      $IPA_PATH"
+
+      - name: List project schemes (sanity check)
+        run: xcodebuild -project "$PROJECT_PATH" -list
+
+      - name: Show resolved build settings (diagnostics)
+        run: |
+          xcodebuild -project "$PROJECT_PATH" -scheme "$SCHEME" -configuration "$CONFIGURATION" -showBuildSettings \
+            | grep -E "PRODUCT_BUNDLE_IDENTIFIER|PRODUCT_NAME|IPHONEOS_DEPLOYMENT_TARGET|MARKETING_VERSION|CODE_SIGN|SDKROOT" \
+            || true
+
+      - name: Create output directories
+        run: mkdir -p "$IPA_DIR" "$LOG_DIR"
+
+      - name: Archive (unsigned — no certificates/profiles/Apple ID involved)
+        run: |
+          set -o pipefail
+          # CODE_SIGNING_ALLOWED=NO skips every codesign invocation for the whole
+          # build graph, including the embedded "SleepTimer Watch App" target that
+          # the iOS app depends on (via its "Embed Watch Content" build phase) —
+          # so the watch target does not need its own signing configuration here.
+          # -destination "generic/platform=iOS" builds for a real device (arm64),
+          # not the Simulator, and needs no physical device or simulator attached.
+          xcodebuild archive \
+            -project "$PROJECT_PATH" \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -destination "generic/platform=iOS" \
+            -archivePath "$ARCHIVE_PATH" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            2>&1 | tee "$LOG_DIR/archive.log"
+
+      - name: Verify archive was produced
+        run: |
+          if [ ! -d "$ARCHIVE_PATH" ]; then
+            echo "::error::Expected archive at $ARCHIVE_PATH was not produced. See archive.log."
+            exit 1
+          fi
+          echo "Archive contents:"
+          find "$ARCHIVE_PATH" -maxdepth 4
+
+      - name: Package unsigned .ipa from the archive
+        run: |
+          set -euo pipefail
+          APP_PATH="$ARCHIVE_PATH/Products/Applications/${APP_NAME}.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "::error::Expected app bundle at $APP_PATH was not found in the archive."
+            echo "Archive Products/Applications contents:"
+            find "$ARCHIVE_PATH/Products" -maxdepth 3 2>/dev/null || echo "(no Products directory)"
+            exit 1
+          fi
+
+          # An .ipa is just a zip with the .app under a top-level "Payload/" folder.
+          # We build that by hand instead of `xcodebuild -exportArchive`, because
+          # export requires a signing identity/provisioning profile — exactly what
+          # this workflow must not depend on. Sideloadly signs the app afterward.
+          PACKAGE_ROOT="$(mktemp -d)"
+          PAYLOAD_DIR="$PACKAGE_ROOT/Payload"
+          mkdir -p "$PAYLOAD_DIR"
+          cp -R "$APP_PATH" "$PAYLOAD_DIR/"
+
+          (cd "$PACKAGE_ROOT" && zip -r -y -q "$GITHUB_WORKSPACE/$IPA_PATH" "Payload")
+
+      - name: Verify IPA was produced
+        run: |
+          if [ ! -f "$IPA_PATH" ]; then
+            echo "::error::Expected IPA at $IPA_PATH was not produced."
+            exit 1
+          fi
+          echo "== IPA file =="
+          ls -la "$IPA_PATH"
+          echo
+          echo "== IPA top-level contents =="
+          unzip -l "$IPA_PATH" | head -20
+
+      - name: Verify the app icon was compiled into the build
+        run: |
+          APP_PATH="$ARCHIVE_PATH/Products/Applications/${APP_NAME}.app"
+          ASSETS_CAR="$APP_PATH/Assets.car"
+
+          if [ ! -f "$ASSETS_CAR" ]; then
+            echo "::warning::No Assets.car found in $APP_PATH — the asset catalog may not have been included."
+            exit 0
+          fi
+
+          echo "Assets.car found: $ASSETS_CAR"
+          if xcrun assetutil --info "$ASSETS_CAR" > "$LOG_DIR/assetutil.json" 2>/dev/null; then
+            if grep -qi "AppIcon" "$LOG_DIR/assetutil.json"; then
+              echo "Confirmed: compiled asset catalog references 'AppIcon'."
+            else
+              echo "::warning::Assets.car was found but no 'AppIcon' entry was detected in it."
+            fi
+          else
+            echo "::warning::assetutil could not inspect Assets.car; skipping icon content verification (file presence only)."
+          fi
+
+      - name: Upload IPA artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SleepTimer-ipa
+          path: ${{ env.IPA_PATH }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SleepTimer-build-logs
+          path: |
+            build/logs/**
+            build/ios/SleepTimer.xcarchive/Info.plist
+          if-no-files-found: warn
+          retention-days: 14
