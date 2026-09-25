@@ -14,21 +14,33 @@ Open `SleepTimer.xcodeproj`, select the **SleepTimer** scheme to build/run the
 iPhone app or the **SleepTimer Watch App** scheme for the Watch app. Both
 schemes are checked in (`xcshareddata/xcschemes`), so they're available
 immediately after cloning — no need to let Xcode auto-generate them first.
-The **SleepTimer** scheme also runs the `SleepTimerTests` unit tests.
+The **SleepTimer** scheme also runs the `SleepTimerTests` unit tests. There's
+a fourth target, **SleepTimerWidgets** (the Live Activity's widget
+extension), but it has no scheme of its own — it builds and embeds
+automatically as a dependency whenever you build/run **SleepTimer**, the
+same way **SleepTimer Watch App** already does.
+
+The deployment target (iOS 26 / watchOS 26) was already far above what any
+of this pass's new APIs require, so it wasn't raised: `ActivityKit` needs
+iOS 16.1+, interactive Live Activity buttons (`LiveActivityIntent`) need
+iOS 17+, and `AppIntents`/`AppShortcutsProvider` need iOS 16+.
 
 ## Signing
 
-All three targets use automatic signing (`CODE_SIGN_STYLE = Automatic`,
+All four targets use automatic signing (`CODE_SIGN_STYLE = Automatic`,
 `ProvisioningStyle = Automatic`) with no `DEVELOPMENT_TEAM` baked in — that's
 intentionally left for you to set per-machine. On first open, select each
 target in **Signing & Capabilities** and choose your team; Xcode will
-provision both the iPhone and Watch app automatically for a device build
-(the bundle IDs — `com.azm.SleepTimer` and `com.azm.SleepTimer.watchkitapp` —
-are placeholders, so if they collide with an existing App ID in your account,
-change them there, in both targets, keeping the `.watchkitapp` suffix
-relationship). No entitlements are required for anything currently
-implemented (timer state uses local `UserDefaults`, completion alerts use
-local — not remote/push — notifications).
+provision the iPhone app, Watch app, and widget extension automatically for
+a device build (the bundle IDs — `com.azm.SleepTimer`,
+`com.azm.SleepTimer.watchkitapp`, and `com.azm.SleepTimer.SleepTimerWidgets`
+— are placeholders, so if they collide with an existing App ID in your
+account, change them, keeping the child-of-`com.azm.SleepTimer` relationship
+for the Watch app and widget extension). No entitlements are required for
+anything implemented so far — timer state uses local `UserDefaults`,
+completion alerts use local (not remote/push) notifications, and Live
+Activities only need the `NSSupportsLiveActivities` Info.plist key (already
+set on the SleepTimer target's build settings), not a capability toggle.
 
 ## Architecture
 
@@ -40,22 +52,36 @@ SleepTimer/
     TimeFormatting.swift      countdown string formatting
     DarkeningBackground.swift shared "sleepy" gradient background, driven by progress
     MediaController.swift     MediaPausing abstraction; pauses system media via AVAudioSession
+    SleepTimerActivityAttributes.swift   ActivityKit ContentState (startDate/endDate) — iOS + widget ext. only
+    SleepTimerActivityController.swift   ActivityControlling abstraction; #if canImport(ActivityKit)-guarded
+    SleepTimerLiveActivityIntents.swift  +5/+10/Cancel LiveActivityIntents — iOS + widget ext. only
   iOS/
     SleepTimerApp.swift, ContentView.swift
     Views/                    SetupView, MinuteDialView, RunningView, FinishedView, CustomAddSheet, GlassComponents
+    Views/Onboarding/         OnboardingView (Welcome → How It Works → Set Up → Test → Done)
+    Intents/                  PauseCurrentMediaIntent, SleepTimerAppShortcuts (App Shortcuts registration)
     Assets.xcassets
+SleepTimerWidgets/             widget extension target (Live Activity UI only, no app logic of its own)
+  SleepTimerLiveActivityWidget.swift
+  Info.plist
 SleepTimer Watch App/
   SleepTimerWatchApp.swift, WatchContentView.swift
   Views/                      WatchSetupView, WatchRunningView, WatchFinishedView, WatchCustomAddView
   Assets.xcassets
 SleepTimerTests/
-  SleepTimerManagerTests.swift
+  SleepTimerManagerTests.swift  (includes SpyMediaController, SpyActivityController)
   MinuteDialMathTests.swift
 ```
 
-`Shared/` files are compiled into *both* app targets directly (not a separate
-framework/package) — the simplest structure for two small app targets that
-need to share pure logic.
+`Shared/` files are compiled into whichever targets need them, directly (not
+a separate framework/package) — the simplest structure for a handful of
+small targets sharing pure logic. Membership varies by file: everything
+needed to compile `SleepTimerManager.swift` goes wherever *it* goes (iOS,
+Watch, and now the widget extension, since its `LiveActivityIntent`s call
+`SleepTimerManager.shared` directly); the two ActivityKit-specific files
+(`SleepTimerActivityAttributes.swift`, `SleepTimerLiveActivityIntents.swift`)
+only go where ActivityKit exists at all — iOS and the widget extension, not
+Watch.
 
 ### Timer correctness across backgrounding
 
@@ -241,8 +267,110 @@ that's fully legitimate, needs no new background mode or server, and turns
 lock screen without fully unlocking." It does not reach true zero-touch -
 Apple gives no mechanism that does, for an app like this - so it wouldn't
 fully satisfy "no need to reopen the app," only shorten and simplify what
-reopening it requires. It's a UI change, so it's intentionally not part of
-this investigation task.
+reopening it requires.
+
+**Update:** that recommendation is now implemented, in a stronger form.
+Rather than a single notification action, a running timer now shows a full
+Live Activity with +5 min / +10 min / Cancel buttons directly on the Lock
+Screen and in the Dynamic Island (see "Live Activity" below) — no
+notification tap required first, and it works for extending the timer too,
+not just cancelling. The underlying limitation from this section is
+unchanged: tapping one of those buttons is still a deliberate action the
+person takes, not something that happens with zero touch while asleep, and
+the *automatic* pause at expiry still only fires when the app is next
+foreground - this only makes the "something went wrong, let me fix it
+without fully unlocking" path faster.
+
+### Live Activity
+
+A running timer shows a Live Activity on the Lock Screen and in the Dynamic
+Island, with the countdown and +5 min / +10 min / Cancel controls. It's
+implemented as its own small app-extension target, **SleepTimerWidgets**,
+because that's the only way ActivityKit's Lock Screen/Dynamic Island UI can
+be presented — WidgetKit extensions are how iOS renders that surface for
+every app, not something drawn by the main app's own view hierarchy.
+
+**No second timer.** The extension holds no timer state and runs no clock
+of its own. `SleepTimerActivityAttributes.ContentState` carries only the
+timer's existing `startDate`/`endDate`; the countdown is rendered by
+`Text(timerInterval:countsDown:)`, a system view that live-updates itself
+from those two dates, so nothing has to push per-second updates. The three
+buttons are `LiveActivityIntent`s (`AddFiveMinutesLiveActivityIntent`,
+`AddTenMinutesLiveActivityIntent`, `CancelSleepTimerLiveActivityIntent`) —
+conforming to `LiveActivityIntent` rather than plain `AppIntent` is what
+makes the system run their `perform()` in *the app's own process* rather
+than the widget extension's (confirmed against Apple's own documentation:
+*"When a person interacts with a button or toggle in your widget, the
+system runs the `perform()` function in your app's process"*), so they call
+straight into `SleepTimerManager.shared.addTime(_:)` / `.cancel()` — the
+exact same methods RunningView's own +5 min/Custom/Cancel buttons call. The
+intent *type* has to be compiled into the widget extension target too (so
+its UI code can reference it to build the button), which is why
+`SleepTimerManager.swift` and its own dependencies are shared into
+`SleepTimerWidgets` as well — but there's exactly one implementation of
+`addTime`/`cancel`/the absolute-`endDate` state, called from three places
+(RunningView, the Live Activity, and — for `PauseCurrentMediaIntent`,
+`MediaController` directly) rather than duplicated anywhere.
+
+**Lifecycle**, via a new `ActivityControlling` abstraction (`SleepTimerManager`
+depends on the protocol, `SleepTimerActivityController` is the ActivityKit
+implementation, tests use a spy — same pattern as `MediaPausing`):
+`start(duration:)` starts it, `addTime(_:)` updates its end date,
+`cancel()` and natural completion (`complete()`) both end it. Relaunching
+while a timer is still running (app force-quit, then reopened) re-syncs it:
+`SleepTimerManager` checks `Activity<Attributes>.activities` for one left
+over from the previous process and adopts it rather than creating a
+duplicate, or starts a fresh one if none exists (e.g. Live Activities were
+off when the timer began). Every call is best-effort and swallows its own
+errors — Live Activities can be disabled system-wide or per-app in
+Settings, and none of that may ever prevent the timer itself from starting,
+extending, or completing, the same principle `MediaController` already
+follows.
+
+### Setting up automatic media pause (onboarding)
+
+A first-launch flow (`OnboardingView`, also reachable later from the info
+button on the setup screen) walks through Welcome → How It Works → Set Up →
+Test → Done. Before building the "Set Up" step, two things were verified
+against Apple's own documentation rather than assumed:
+
+- **A third-party app cannot install a Shortcuts automation for someone.**
+  There is no public API or URL scheme for it. `shortcuts://create-shortcut`
+  opens the shortcut *editor* for a plain shortcut, requiring the person to
+  review and save it themselves; there is nothing equivalent for
+  *automations* (the trigger+action pairing under the Automation tab) at
+  all — those can only be built by hand, in the Shortcuts app.
+- **There is no "app sent a notification" automation trigger, at all,
+  for anyone to use — with or without our involvement.** This is more
+  fundamental than an installation restriction: even if a person builds a
+  personal automation by hand, Shortcuts has no trigger type for "a
+  specific app's notification arrived." (Checked against Apple's current
+  Shortcuts trigger list; the closest built-in trigger is a *Message*
+  received from a chosen sender matching text, which is a different
+  feature entirely.) So the flow this feature was originally framed around
+  — "timer ends → Sleep Timer notification → automation reacts to it" —
+  isn't buildable in Shortcuts by anyone, not just by an app trying to set
+  it up automatically.
+
+What *is* fully automatic, and already true by the time onboarding ever
+runs: `PauseCurrentMediaIntent` (wrapping the exact same
+`MediaController.pauseCurrentMedia()` the timer uses) is registered via
+`SleepTimerAppShortcuts: AppShortcutsProvider`, which means it appears in
+Siri, Spotlight, and the Shortcuts app's per-app action list the moment the
+app is installed — no button to tap, no setup screen, no permission prompt.
+That's the one piece of "add Sleep Timer to Shortcuts" iOS lets an app do
+for someone.
+
+Given that, "Set Up" implements the closest legitimate flow rather than
+inventing one: its primary button opens the Shortcuts app
+(`shortcuts://`), and concise numbered steps cover the part that has to
+stay manual — creating a personal automation (a **Time of Day** trigger is
+the closest fit for "run this around my usual bedtime," since no better
+trigger exists) that runs the now-discoverable "Pause Current Media"
+action. "Test It" calls `MediaController().pauseCurrentMedia()` directly,
+so the one genuinely uncertain part — whether the pause mechanism itself
+works on your setup — can be checked immediately, independent of whether
+Shortcuts automation is ever configured.
 
 ### Darkening background
 
@@ -264,6 +392,15 @@ drift rather than a discrete theme swap. The setup screen uses a constant
 - Local notification on timer completion
 - System media pause on completion (see "Media pause on completion" above),
   and a calm "Good Night" finished state instead of a stuck 00:00
+- Live Activity (Lock Screen + Dynamic Island) for a running timer, with
+  working +5 min / +10 min / Cancel controls — iPhone only, per this pass
+- "Pause Current Media" App Intent, discoverable via Siri/Spotlight/Shortcuts
+  with zero setup (`SleepTimerAppShortcuts`)
+- First-launch onboarding explaining automatic media pause, with an honest
+  "Set Up in Shortcuts" flow and a "Test It" step, re-openable from an info
+  button on the setup screen
+- Unit tests for the Live Activity lifecycle (start/update/end sequencing)
+  via a spy `ActivityControlling`, alongside the existing timer/media tests
 
 ## What's intentionally not implemented yet
 
@@ -273,6 +410,12 @@ drift rather than a discrete theme swap. The setup screen uses a constant
 - **Per-app / streaming-service-specific media integration** — deliberately
   out of scope; the pause mechanism is generic and app-agnostic by design
   (see above), not a Spotify/Apple Music/Podcasts-specific integration.
+- **Watch app functionality for this pass's two features** — explicitly out
+  of scope per the brief. The Live Activity specifically isn't a "not yet"
+  either: ActivityKit's Lock Screen/Dynamic Island surface is an iPhone/
+  iPad concept with no watchOS equivalent, so there's nothing to add there.
+  `SleepTimerAppShortcuts`/`PauseCurrentMediaIntent` could be made available
+  on watchOS too (App Intents is cross-platform) if that's ever wanted.
 
 ## App icons
 
@@ -299,20 +442,47 @@ checked directly — the hourglass-and-moon silhouette still reads clearly.
 
 ## Known limitation of this change
 
-This was implemented in a Linux container with no Xcode or Swift toolchain
-available, so **the project could not actually be compiled, run, or tested
-here** — `xcodebuild` and `swift` are simply not present on this machine.
-The `project.pbxproj` was generated programmatically and then opened,
-structurally validated, and used to generate the two schemes above with the
+This project has been developed in a Linux container with no Xcode or Swift
+toolchain available at any point, so **none of it has actually been
+compiled, run, or tested on-device** — `xcodebuild` and `swift` are simply
+not present on this machine. `project.pbxproj` is generated/edited
+programmatically and then structurally validated with the
 [`xcodeproj`](https://github.com/CocoaPods/Xcodeproj) Ruby gem (the same
-library CocoaPods/fastlane use to manipulate real Xcode projects), which
-confirmed every target's source/resource file references resolve to real
-files on disk and the Watch app is correctly embedded in the iPhone app.
-That verifies the project's structure, not that the Swift code compiles.
+library CocoaPods/fastlane use), which confirms every target's source/
+resource references resolve to real files on disk and that targets embed
+and depend on each other correctly. That verifies the project's structure,
+not that the Swift code compiles or that any of it behaves correctly at
+runtime — that has been true of every change in this repository's history,
+not just this one.
 
-**Before relying on this, please open it in Xcode on a Mac, build both
-targets, and run the test target** — that is the one step that could not be
-completed here. If anything doesn't compile, the most likely spots are
-newer Liquid Glass API names (`.buttonStyle(.glass)`, `.glassProminent`,
-`GlassEffectContainer`) or the watchOS `digitalCrownRotation` overload,
-since those depend on the exact iOS/watchOS 26 SDK you have installed.
+This particular pass carries more of that risk than most before it: it adds
+a **fourth Xcode target from scratch** (`SleepTimerWidgets`, an app
+extension — assembled by hand with the `xcodeproj` gem's `new_target`
+helper plus manually-configured build settings, embedding, and a physical
+`Info.plist`, since there's no Xcode wizard available here to do it) and
+uses three frameworks with no prior code in this repository to check
+assumptions against: `ActivityKit`, `WidgetKit`, and `AppIntents`. The
+`LiveActivityIntent`-runs-in-the-app's-process behavior this relies on was
+verified against a direct quote from Apple's own documentation (see "Live
+Activity" above) rather than assumed, and the Shortcuts capabilities
+(and lack thereof) behind the onboarding flow were verified against
+Apple's current documentation and Review Guidelines rather than assumed —
+but "verified against docs" is not the same thing as "compiled and run,"
+and for a target/extension relationship this is the one part of this
+project that could not be cross-checked by opening a similar Xcode-
+generated project for comparison the way the Watch target's embedding
+could be earlier on.
+
+**Before relying on this, please open it in Xcode on a Mac and build all
+four targets, run the test target, and check Signing & Capabilities for
+each target** (the widget extension is new and needs your team selected
+too) — that is the one step that could never be completed here. If
+anything doesn't compile or embed correctly, the most likely spots, in
+rough order of how novel they are to this codebase: the hand-assembled
+`SleepTimerWidgets` target's build settings or embed phase; the
+`ActivityKit`/`WidgetKit` API surface in `SleepTimerLiveActivityWidget.swift`
+and `SleepTimerActivityController.swift`; `AppIntents`/`AppShortcutsProvider`
+usage in `PauseCurrentMediaIntent.swift`/`SleepTimerAppShortcuts.swift`;
+and, as before, newer Liquid Glass API names or the watchOS
+`digitalCrownRotation` overload, since all of these depend on the exact
+iOS/watchOS 26 SDK you have installed.

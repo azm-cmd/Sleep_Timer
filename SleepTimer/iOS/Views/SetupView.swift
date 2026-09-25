@@ -3,6 +3,7 @@ import SwiftUI
 struct SetupView: View {
     @EnvironmentObject private var manager: SleepTimerManager
     @State private var selectedMinutes: Int = 30
+    @State private var showingSetupGuide = false
 
     private let presets = [15, 30, 45, 60]
 
@@ -57,6 +58,30 @@ struct SetupView: View {
                 .tint(.cyan)
                 .padding(.horizontal, 28)
                 .padding(.bottom, 20)
+            }
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        showingSetupGuide = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 16, weight: .semibold))
+                            .frame(width: 34, height: 34)
+                    }
+                    .buttonStyle(.glass)
+                    .tint(.white.opacity(0.15))
+                    .foregroundStyle(.white.opacity(0.7))
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+        }
+        .sheet(isPresented: $showingSetupGuide) {
+            OnboardingView(isReplay: true) {
+                showingSetupGuide = false
             }
         }
     }

@@ -12,10 +12,37 @@ final class SpyMediaController: MediaPausing {
     }
 }
 
+/// Records Live Activity lifecycle calls without touching ActivityKit, so
+/// start/update/end sequencing can be tested without a device or an actual
+/// Live Activity.
+final class SpyActivityController: ActivityControlling {
+    private(set) var startCount = 0
+    private(set) var updateCount = 0
+    private(set) var endCount = 0
+    private(set) var lastStartDate: Date?
+    private(set) var lastEndDate: Date?
+
+    func start(startDate: Date, endDate: Date) {
+        startCount += 1
+        lastStartDate = startDate
+        lastEndDate = endDate
+    }
+
+    func update(endDate: Date) {
+        updateCount += 1
+        lastEndDate = endDate
+    }
+
+    func end() {
+        endCount += 1
+    }
+}
+
 @MainActor
 final class SleepTimerManagerTests: XCTestCase {
     private var defaults: UserDefaults!
     private var mediaController: SpyMediaController!
+    private var activityController: SpyActivityController!
     private var manager: SleepTimerManager!
     private let suiteName = "SleepTimerManagerTests"
     private let stateKey = "com.azm.sleeptimer.activeState"
@@ -25,13 +52,15 @@ final class SleepTimerManagerTests: XCTestCase {
         defaults = UserDefaults(suiteName: suiteName)
         defaults.removePersistentDomain(forName: suiteName)
         mediaController = SpyMediaController()
-        manager = SleepTimerManager(defaults: defaults, mediaController: mediaController)
+        activityController = SpyActivityController()
+        manager = SleepTimerManager(defaults: defaults, mediaController: mediaController, activityController: activityController)
     }
 
     override func tearDown() {
         defaults.removePersistentDomain(forName: suiteName)
         manager = nil
         mediaController = nil
+        activityController = nil
         defaults = nil
         super.tearDown()
     }
@@ -67,7 +96,11 @@ final class SleepTimerManagerTests: XCTestCase {
     /// app relaunch) reconstructs the correct remaining duration.
     func testStateSurvivesReconstructionFromPersistence() {
         manager.start(duration: 600)
-        let relaunched = SleepTimerManager(defaults: defaults, mediaController: SpyMediaController())
+        let relaunched = SleepTimerManager(
+            defaults: defaults,
+            mediaController: SpyMediaController(),
+            activityController: SpyActivityController()
+        )
         XCTAssertTrue(relaunched.isRunning)
         XCTAssertEqual(relaunched.remaining, 600, accuracy: 1.0)
     }
@@ -117,11 +150,13 @@ final class SleepTimerManagerTests: XCTestCase {
         }
 
         let spy = SpyMediaController()
-        let relaunched = SleepTimerManager(defaults: defaults, mediaController: spy)
+        let activitySpy = SpyActivityController()
+        let relaunched = SleepTimerManager(defaults: defaults, mediaController: spy, activityController: activitySpy)
 
         XCTAssertFalse(relaunched.isRunning)
         XCTAssertTrue(relaunched.didFinish)
         XCTAssertEqual(spy.pauseCount, 1)
+        XCTAssertEqual(activitySpy.endCount, 1)
     }
 
     func testCancellationDoesNotTriggerPause() {
@@ -182,6 +217,73 @@ final class SleepTimerManagerTests: XCTestCase {
         manager.start(duration: 300)
 
         XCTAssertFalse(manager.didFinish)
+    }
+
+    // MARK: - Live Activity lifecycle
+
+    /// Starting a timer starts exactly one Live Activity, carrying the same
+    /// absolute start/end dates as the timer itself — not a second timer
+    /// implementation, just another observer of the same state.
+    func testStartStartsLiveActivityWithMatchingDates() {
+        manager.start(duration: 600)
+
+        XCTAssertEqual(activityController.startCount, 1)
+        XCTAssertEqual(activityController.updateCount, 0)
+        guard let lastStartDate = activityController.lastStartDate, let lastEndDate = activityController.lastEndDate else {
+            return XCTFail("Expected start/end dates to be recorded")
+        }
+        XCTAssertEqual(lastEndDate.timeIntervalSince(lastStartDate), 600, accuracy: 1.0)
+    }
+
+    /// +5 min / +10 min (via `addTime`) update the Live Activity's end date
+    /// rather than starting a new one.
+    func testAddTimeUpdatesLiveActivityEndDate() {
+        manager.start(duration: 600)
+        manager.addTime(5 * 60)
+
+        XCTAssertEqual(activityController.startCount, 1)
+        XCTAssertEqual(activityController.updateCount, 1)
+        XCTAssertEqual(activityController.lastEndDate?.timeIntervalSince(activityController.lastStartDate ?? .distantPast), 900, accuracy: 1.0)
+    }
+
+    func testAddTimeWithNoActiveTimerDoesNotUpdateLiveActivity() {
+        manager.addTime(300)
+
+        XCTAssertEqual(activityController.updateCount, 0)
+    }
+
+    /// Cancelling ends the Live Activity - a deliberate user action, same as
+    /// it deliberately does not trigger a media pause.
+    func testCancelEndsLiveActivity() {
+        manager.start(duration: 600)
+        manager.cancel()
+
+        XCTAssertEqual(activityController.endCount, 1)
+    }
+
+    /// Natural completion also ends the Live Activity, alongside the media
+    /// pause and the finished-state flag.
+    func testCompletionEndsLiveActivity() {
+        manager.start(duration: 600)
+        rewritePersistedEndDate(to: Date().addingTimeInterval(-1))
+        manager.refreshFromPersistence()
+
+        XCTAssertEqual(activityController.endCount, 1)
+    }
+
+    /// Relaunching while a timer is still running (not yet expired) must
+    /// re-sync the Live Activity - it may have been lost to a killed
+    /// process, or never started if Live Activities were off originally.
+    func testRelaunchWhileStillRunningResyncsLiveActivity() {
+        manager.start(duration: 600)
+
+        let spy = SpyMediaController()
+        let activitySpy = SpyActivityController()
+        let relaunched = SleepTimerManager(defaults: defaults, mediaController: spy, activityController: activitySpy)
+
+        XCTAssertTrue(relaunched.isRunning)
+        XCTAssertEqual(activitySpy.startCount, 1)
+        XCTAssertEqual(activitySpy.endCount, 0)
     }
 
     // MARK: - Helpers

@@ -9,8 +9,17 @@
 /* Begin PBXBuildFile section */
 		25C9C2DCC0F72C2A027AB14B /* MinuteDialMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3D3B63FA75D842A76EEC18 /* MinuteDialMathTests.swift */; };
 		2FA4A68E163B48D94DFC1660 /* FinishedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADB04CE4EE402B1DCFF0A02F /* FinishedView.swift */; };
+		364AD5E542B4FA5CB6EF634D /* SleepTimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2075017D49C58D963E61B9DB /* SleepTimerActivityAttributes.swift */; };
 		425503BCB2348B658DE1B4EF /* MediaController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F29CAC8385AE5D9506B30C /* MediaController.swift */; };
 		5026894FB2413F67A145A9F5 /* MediaController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F29CAC8385AE5D9506B30C /* MediaController.swift */; };
+		5A0894DA30CD68CE3D9D8B42 /* SleepTimerWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = DB4F72507A0F60870005F6C3 /* SleepTimerWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		5D8919AD7C71540BC2014B02 /* PauseCurrentMediaIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D35840414A235EDDAA75388F /* PauseCurrentMediaIntent.swift */; };
+		68607DD6AE9654FF58EB78A9 /* SleepTimerState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* SleepTimerState.swift */; };
+		6FFD8F48560B2B53354B123B /* SleepTimerLiveActivityIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F575EEF16E2515893B32F4 /* SleepTimerLiveActivityIntents.swift */; };
+		7A61CC8CC6CA2D57F1F302DC /* SleepTimerAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EC935CDD838A38C17E23833 /* SleepTimerAppShortcuts.swift */; };
+		7DFD9395A4728C6001AE2439 /* SleepTimerLiveActivityIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F575EEF16E2515893B32F4 /* SleepTimerLiveActivityIntents.swift */; };
+		8A70136C14473458B40E1E63 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 86AFFF007B6BE27697B9CB77 /* Foundation.framework */; };
+		A9FCD94C8F60A0715655574F /* SleepTimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2075017D49C58D963E61B9DB /* SleepTimerActivityAttributes.swift */; };
 		AA0000000000000000000012 /* SleepTimerState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* SleepTimerState.swift */; };
 		AA0000000000000000000013 /* SleepTimerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000002 /* SleepTimerManager.swift */; };
 		AA0000000000000000000014 /* TimeFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000003 /* TimeFormatting.swift */; };
@@ -35,10 +44,24 @@
 		AA0000000000000000000029 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000027 /* Assets.xcassets */; };
 		AA000000000000000000002A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000028 /* Assets.xcassets */; };
 		AA000000000000000000002E /* SleepTimer Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = AA000000000000000000002C /* SleepTimer Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		BEA784BE16CBA672CFAD126F /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6910CD8BA4F581AB20E9F8 /* OnboardingView.swift */; };
+		CED556957144A9D9BFC2C029 /* SleepTimerActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D98F356D5BA6AA053938C53A /* SleepTimerActivityController.swift */; };
+		D6D0036EC9275A16E7B1862E /* SleepTimerLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C69BCA265B5FE30D0CC2AAAC /* SleepTimerLiveActivityWidget.swift */; };
+		D7599C0413A34A955822634C /* SleepTimerActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D98F356D5BA6AA053938C53A /* SleepTimerActivityController.swift */; };
 		D8EA65AC4A75DE479A0F1C18 /* WatchFinishedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2255276307F541BE49D3DC79 /* WatchFinishedView.swift */; };
+		EB2CBCAD3A23CFD10E7067AF /* SleepTimerActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D98F356D5BA6AA053938C53A /* SleepTimerActivityController.swift */; };
+		F5AF0EDDFDF3ACBC4358D994 /* MediaController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F29CAC8385AE5D9506B30C /* MediaController.swift */; };
+		F5E0B6AA706A41F5D7CCD7A3 /* SleepTimerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000002 /* SleepTimerManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		0CDFC986C084A198445065F5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA000000000000000000003B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F8FDE843D84080D82DCCD4D9;
+			remoteInfo = SleepTimerWidgets;
+		};
 		AA0000000000000000000046 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = AA000000000000000000003B /* Project object */;
@@ -56,6 +79,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		A5915D4E9F66B3A91AC6EDFD /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				5A0894DA30CD68CE3D9D8B42 /* SleepTimerWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AA0000000000000000000045 /* Embed Watch Content */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -71,7 +105,13 @@
 
 /* Begin PBXFileReference section */
 		07F29CAC8385AE5D9506B30C /* MediaController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MediaController.swift; sourceTree = "<group>"; };
+		2075017D49C58D963E61B9DB /* SleepTimerActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepTimerActivityAttributes.swift; sourceTree = "<group>"; };
 		2255276307F541BE49D3DC79 /* WatchFinishedView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchFinishedView.swift; sourceTree = "<group>"; };
+		4D6910CD8BA4F581AB20E9F8 /* OnboardingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		566CF74BD8C757C913CD0C9F /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		86AFFF007B6BE27697B9CB77 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		87F575EEF16E2515893B32F4 /* SleepTimerLiveActivityIntents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepTimerLiveActivityIntents.swift; sourceTree = "<group>"; };
+		9EC935CDD838A38C17E23833 /* SleepTimerAppShortcuts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepTimerAppShortcuts.swift; sourceTree = "<group>"; };
 		AA0000000000000000000001 /* SleepTimerState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepTimerState.swift; sourceTree = "<group>"; };
 		AA0000000000000000000002 /* SleepTimerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepTimerManager.swift; sourceTree = "<group>"; };
 		AA0000000000000000000003 /* TimeFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatting.swift; sourceTree = "<group>"; };
@@ -95,10 +135,22 @@
 		AA000000000000000000002C /* SleepTimer Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "SleepTimer Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA000000000000000000002D /* SleepTimerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SleepTimerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		ADB04CE4EE402B1DCFF0A02F /* FinishedView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinishedView.swift; sourceTree = "<group>"; };
+		C69BCA265B5FE30D0CC2AAAC /* SleepTimerLiveActivityWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepTimerLiveActivityWidget.swift; sourceTree = "<group>"; };
+		D35840414A235EDDAA75388F /* PauseCurrentMediaIntent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PauseCurrentMediaIntent.swift; sourceTree = "<group>"; };
+		D98F356D5BA6AA053938C53A /* SleepTimerActivityController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepTimerActivityController.swift; sourceTree = "<group>"; };
+		DB4F72507A0F60870005F6C3 /* SleepTimerWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SleepTimerWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		FF3D3B63FA75D842A76EEC18 /* MinuteDialMathTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MinuteDialMathTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		24A89F58948AFFD0A3A12833 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8A70136C14473458B40E1E63 /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AA000000000000000000003D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -123,6 +175,31 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		120AA49BEEB137EA87351484 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				86AFFF007B6BE27697B9CB77 /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		78489249A0506B1D95F94F60 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				4D6910CD8BA4F581AB20E9F8 /* OnboardingView.swift */,
+			);
+			name = Onboarding;
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		7F9008530B2D60104692A9EB /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				120AA49BEEB137EA87351484 /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		AA000000000000000000002F = {
 			isa = PBXGroup;
 			children = (
@@ -130,6 +207,8 @@
 				AA0000000000000000000034 /* SleepTimer Watch App */,
 				AA0000000000000000000036 /* SleepTimerTests */,
 				AA0000000000000000000037 /* Products */,
+				7F9008530B2D60104692A9EB /* Frameworks */,
+				C1C3E35FC648137A5BEE6641 /* SleepTimerWidgets */,
 			);
 			sourceTree = "<group>";
 		};
@@ -150,6 +229,9 @@
 				AA0000000000000000000003 /* TimeFormatting.swift */,
 				AA0000000000000000000004 /* DarkeningBackground.swift */,
 				07F29CAC8385AE5D9506B30C /* MediaController.swift */,
+				D98F356D5BA6AA053938C53A /* SleepTimerActivityController.swift */,
+				2075017D49C58D963E61B9DB /* SleepTimerActivityAttributes.swift */,
+				87F575EEF16E2515893B32F4 /* SleepTimerLiveActivityIntents.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -161,6 +243,7 @@
 				AA0000000000000000000006 /* ContentView.swift */,
 				AA0000000000000000000033 /* Views */,
 				AA0000000000000000000027 /* Assets.xcassets */,
+				AE9FA89F4E935C30CC3EF826 /* Intents */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -174,6 +257,7 @@
 				AA000000000000000000000A /* RunningView.swift */,
 				AA000000000000000000000B /* CustomAddSheet.swift */,
 				ADB04CE4EE402B1DCFF0A02F /* FinishedView.swift */,
+				78489249A0506B1D95F94F60 /* Onboarding */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -215,8 +299,29 @@
 				AA000000000000000000002B /* SleepTimer.app */,
 				AA000000000000000000002C /* SleepTimer Watch App.app */,
 				AA000000000000000000002D /* SleepTimerTests.xctest */,
+				DB4F72507A0F60870005F6C3 /* SleepTimerWidgets.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		AE9FA89F4E935C30CC3EF826 /* Intents */ = {
+			isa = PBXGroup;
+			children = (
+				D35840414A235EDDAA75388F /* PauseCurrentMediaIntent.swift */,
+				9EC935CDD838A38C17E23833 /* SleepTimerAppShortcuts.swift */,
+			);
+			name = Intents;
+			path = Intents;
+			sourceTree = "<group>";
+		};
+		C1C3E35FC648137A5BEE6641 /* SleepTimerWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				C69BCA265B5FE30D0CC2AAAC /* SleepTimerLiveActivityWidget.swift */,
+				566CF74BD8C757C913CD0C9F /* Info.plist */,
+			);
+			name = SleepTimerWidgets;
+			path = SleepTimerWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -230,11 +335,13 @@
 				AA000000000000000000003D /* Frameworks */,
 				AA000000000000000000003E /* Resources */,
 				AA0000000000000000000045 /* Embed Watch Content */,
+				A5915D4E9F66B3A91AC6EDFD /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				AA0000000000000000000047 /* PBXTargetDependency */,
+				3618D3506C0749B6BF256430 /* PBXTargetDependency */,
 			);
 			name = SleepTimer;
 			productName = SleepTimer;
@@ -276,6 +383,23 @@
 			productReference = AA000000000000000000002D /* SleepTimerTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		F8FDE843D84080D82DCCD4D9 /* SleepTimerWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C9A5EE4F6E6D375AC45BCE03 /* Build configuration list for PBXNativeTarget "SleepTimerWidgets" */;
+			buildPhases = (
+				14B50759ADDEF53E44157DD8 /* Sources */,
+				24A89F58948AFFD0A3A12833 /* Frameworks */,
+				87173EE4703AA4E1B86B5BA6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SleepTimerWidgets;
+			productName = SleepTimerWidgets;
+			productReference = DB4F72507A0F60870005F6C3 /* SleepTimerWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -299,6 +423,10 @@
 						ProvisioningStyle = Automatic;
 						TestTargetID = AA0000000000000000000038;
 					};
+					F8FDE843D84080D82DCCD4D9 = {
+						CreatedOnToolsVersion = 16.2;
+						ProvisioningStyle = Automatic;
+					};
 				};
 			};
 			buildConfigurationList = AA000000000000000000004C /* Build configuration list for PBXProject "SleepTimer" */;
@@ -317,11 +445,19 @@
 				AA0000000000000000000038 /* SleepTimer */,
 				AA0000000000000000000039 /* SleepTimer Watch App */,
 				AA000000000000000000003A /* SleepTimerTests */,
+				F8FDE843D84080D82DCCD4D9 /* SleepTimerWidgets */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		87173EE4703AA4E1B86B5BA6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AA000000000000000000003E /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -348,6 +484,20 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		14B50759ADDEF53E44157DD8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D7599C0413A34A955822634C /* SleepTimerActivityController.swift in Sources */,
+				A9FCD94C8F60A0715655574F /* SleepTimerActivityAttributes.swift in Sources */,
+				6FFD8F48560B2B53354B123B /* SleepTimerLiveActivityIntents.swift in Sources */,
+				68607DD6AE9654FF58EB78A9 /* SleepTimerState.swift in Sources */,
+				F5E0B6AA706A41F5D7CCD7A3 /* SleepTimerManager.swift in Sources */,
+				F5AF0EDDFDF3ACBC4358D994 /* MediaController.swift in Sources */,
+				D6D0036EC9275A16E7B1862E /* SleepTimerLiveActivityWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AA000000000000000000003C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -365,6 +515,12 @@
 				AA0000000000000000000020 /* CustomAddSheet.swift in Sources */,
 				425503BCB2348B658DE1B4EF /* MediaController.swift in Sources */,
 				2FA4A68E163B48D94DFC1660 /* FinishedView.swift in Sources */,
+				EB2CBCAD3A23CFD10E7067AF /* SleepTimerActivityController.swift in Sources */,
+				364AD5E542B4FA5CB6EF634D /* SleepTimerActivityAttributes.swift in Sources */,
+				7DFD9395A4728C6001AE2439 /* SleepTimerLiveActivityIntents.swift in Sources */,
+				5D8919AD7C71540BC2014B02 /* PauseCurrentMediaIntent.swift in Sources */,
+				7A61CC8CC6CA2D57F1F302DC /* SleepTimerAppShortcuts.swift in Sources */,
+				BEA784BE16CBA672CFAD126F /* OnboardingView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -383,6 +539,7 @@
 				AA0000000000000000000025 /* WatchCustomAddView.swift in Sources */,
 				5026894FB2413F67A145A9F5 /* MediaController.swift in Sources */,
 				D8EA65AC4A75DE479A0F1C18 /* WatchFinishedView.swift in Sources */,
+				CED556957144A9D9BFC2C029 /* SleepTimerActivityController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -398,6 +555,12 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		3618D3506C0749B6BF256430 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = SleepTimerWidgets;
+			target = F8FDE843D84080D82DCCD4D9 /* SleepTimerWidgets */;
+			targetProxy = 0CDFC986C084A198445065F5 /* PBXContainerItemProxy */;
+		};
 		AA0000000000000000000047 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = AA0000000000000000000039 /* SleepTimer Watch App */;
@@ -539,6 +702,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Sleep Timer";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -570,6 +734,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Sleep Timer";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -682,6 +847,57 @@
 			};
 			name = Release;
 		};
+		C4B59B9A7E6D877E307EA3BF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SleepTimerWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.azm.SleepTimer.SleepTimerWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		EA99F9B5CDB851789EFD78DB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SleepTimerWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.azm.SleepTimer.SleepTimerWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -717,6 +933,15 @@
 			buildConfigurations = (
 				AA0000000000000000000053 /* Debug */,
 				AA0000000000000000000054 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C9A5EE4F6E6D375AC45BCE03 /* Build configuration list for PBXNativeTarget "SleepTimerWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C4B59B9A7E6D877E307EA3BF /* Release */,
+				EA99F9B5CDB851789EFD78DB /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -26,11 +26,11 @@ import UserNotifications
 /// `audio` background mode is only for apps genuinely playing continuous
 /// audio, which this one isn't, per App Review Guideline 2.5.4). Read that
 /// section before reaching for any of those as "the fix" - the actual fix
-/// already exists below: every expiry path (`tick`, `refreshFromPersistence`,
-/// and `init` via `checkForExpiry`) funnels through the same `complete()`,
-/// so the pause and the finished state are always caught up exactly once,
-/// as soon as the app is next foregrounded, even though that isn't
-/// necessarily the literal instant of expiry.
+/// already exists below: every expiry path (`tick`'s `checkForExpiry`, and
+/// `refreshFromPersistence`/`init`'s `syncAfterRestoringState`) funnels
+/// through the same `complete()`, so the pause and the finished state are
+/// always caught up exactly once, as soon as the app is next foregrounded,
+/// even though that isn't necessarily the literal instant of expiry.
 @MainActor
 final class SleepTimerManager: ObservableObject {
     static let shared = SleepTimerManager()
@@ -44,20 +44,28 @@ final class SleepTimerManager: ObservableObject {
 
     private let defaults: UserDefaults
     private let mediaController: MediaPausing
+    private let activityController: ActivityControlling
     private let stateKey = "com.azm.sleeptimer.activeState"
     private let notificationID = "com.azm.sleeptimer.completion"
     private var ticker: AnyCancellable?
 
-    init(defaults: UserDefaults = .standard, mediaController: MediaPausing = MediaController()) {
+    init(
+        defaults: UserDefaults = .standard,
+        mediaController: MediaPausing = MediaController(),
+        activityController: ActivityControlling = SleepTimerActivityController()
+    ) {
         self.defaults = defaults
         self.mediaController = mediaController
+        self.activityController = activityController
         restoreState()
         // Catches the case where the process was fully relaunched (not just
         // foregrounded) after the timer's end date already passed while
         // backgrounded — e.g. the app was terminated overnight. Without
         // this, a cold launch would silently discard the expired state
         // without ever attempting the pause or showing the finished screen.
-        checkForExpiry(at: Date())
+        // For a still-running timer, this is also what reconnects the Live
+        // Activity after a relaunch.
+        syncAfterRestoringState(at: Date())
         ticker = Timer.publish(every: 1.0, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] date in
@@ -77,11 +85,13 @@ final class SleepTimerManager: ObservableObject {
 
     func start(duration: TimeInterval) {
         let start = Date()
-        state = SleepTimerState(startDate: start, endDate: start.addingTimeInterval(duration))
+        let end = start.addingTimeInterval(duration)
+        state = SleepTimerState(startDate: start, endDate: end)
         now = start
         didFinish = false
         persist()
         scheduleCompletionNotification()
+        activityController.start(startDate: start, endDate: end)
     }
 
     func addTime(_ interval: TimeInterval) {
@@ -90,12 +100,14 @@ final class SleepTimerManager: ObservableObject {
         state = current
         persist()
         scheduleCompletionNotification()
+        activityController.update(endDate: current.endDate)
     }
 
     func cancel() {
         state = nil
         persist()
         cancelCompletionNotification()
+        activityController.end()
     }
 
     /// Call once the person has seen the "finished" screen (or is starting
@@ -110,7 +122,7 @@ final class SleepTimerManager: ObservableObject {
     func refreshFromPersistence() {
         restoreState()
         now = Date()
-        checkForExpiry(at: now)
+        syncAfterRestoringState(at: now)
     }
 
     private func tick(at date: Date) {
@@ -130,11 +142,26 @@ final class SleepTimerManager: ObservableObject {
         }
     }
 
+    /// Called right after `restoreState()` (app launch or reactivation).
+    /// Either completes a timer whose end date already passed, or - for one
+    /// still running - makes sure the Live Activity is showing and current,
+    /// since it may have been lost (process killed) or never started
+    /// (Live Activities were off when the timer began).
+    private func syncAfterRestoringState(at date: Date) {
+        guard let state else { return }
+        if state.isExpired(asOf: date) {
+            complete()
+        } else {
+            activityController.start(startDate: state.startDate, endDate: state.endDate)
+        }
+    }
+
     private func complete() {
         state = nil
         persist()
         cancelCompletionNotification()
         mediaController.pauseCurrentMedia()
+        activityController.end()
         didFinish = true
     }
 
