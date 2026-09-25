@@ -12,6 +12,25 @@ import UserNotifications
 /// `progress`, which are recomputed from that end date and the current time
 /// on every tick. This is what makes the countdown correct after the app is
 /// backgrounded, the screen locks, or the process is relaunched.
+///
+/// That's also why the 1-second `ticker` below is *not* what makes
+/// `complete()` (and the media pause inside it) reliable while backgrounded:
+/// locking the screen backgrounds this app the same way switching apps
+/// does, and a plain app with no active background mode is suspended
+/// shortly after - zero CPU time, so the ticker simply stops. There is no
+/// Apple-supported way for an app like this one to guarantee running code
+/// at an exact future time while suspended (investigated in depth in
+/// README.md under "Background execution: what's actually possible" -
+/// `BGTaskScheduler` is opportunistic and not time-precise, a background
+/// local notification doesn't hand the app execution time, and the
+/// `audio` background mode is only for apps genuinely playing continuous
+/// audio, which this one isn't, per App Review Guideline 2.5.4). Read that
+/// section before reaching for any of those as "the fix" - the actual fix
+/// already exists below: every expiry path (`tick`, `refreshFromPersistence`,
+/// and `init` via `checkForExpiry`) funnels through the same `complete()`,
+/// so the pause and the finished state are always caught up exactly once,
+/// as soon as the app is next foregrounded, even though that isn't
+/// necessarily the literal instant of expiry.
 @MainActor
 final class SleepTimerManager: ObservableObject {
     static let shared = SleepTimerManager()

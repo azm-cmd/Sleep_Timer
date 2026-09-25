@@ -124,22 +124,125 @@ must honor it. Deactivating again *without* `.notifyOthersOnDeactivation`
 keeps the interrupted app paused rather than inviting it to resume
 immediately.
 
-**Honest limitation:** there is no Apple-supported way for a normal app
-(no special entitlement, no continuous background audio session) to
-guarantee this runs at the *exact* moment the timer hits zero while the
-phone is locked and the app is fully suspended — `BGTaskScheduler` is
-opportunistic and not time-precise, and a local notification firing in the
-background does not hand the app execution time to act on it. In practice
-the pause fires: immediately, if the app is in the foreground when the
-timer reaches zero (the common case — falling asleep with the app open);
-and as soon as the app is reopened or reactivated afterward, if the timer
-expired while backgrounded or the process was killed entirely — every
-expiry path (live tick, foreground reactivation, and cold relaunch) now
-funnels through the same `complete()`, so the pause is always attempted
-exactly once per completed timer, just not necessarily at the literal
-instant of expiry if nobody touched the phone before then. The already-
-existing local notification still fires at the correct time regardless, so
-the person is alerted even before that catch-up happens.
+#### Background execution: what's actually possible (investigated, not assumed)
+
+Confirmed by hands-on testing (foreground: pauses correctly; locked/
+backgrounded: notification arrives on time, pause doesn't happen until the
+app is reopened) and then researched properly rather than patched around.
+Every mechanism iOS actually offers for "run my code later, in the
+background":
+
+- **App lifecycle: locking the screen *is* backgrounding, for this app.**
+  Apple's documented app lifecycle treats the Sleep/Wake button and Home
+  button the same way: both move the app from foreground to background.
+  There's no special case for "still frontmost but the screen is off" — a
+  plain app with no active background mode gets backgrounded the moment the
+  screen locks, then **suspended** shortly after (frozen: zero CPU time,
+  nothing we schedule can run, full stop, until the app is foregrounded or
+  killed). The only genuinely different state is the brief "background" one
+  the app passes through *between* those two - the OS grants a short,
+  undocumented-exact-length grace period to finish up (historically on the
+  order of seconds to ~30s for apps that explicitly ask for it via
+  `beginBackgroundTask`, which this app doesn't). Our 1-second Combine
+  ticker could incidentally still fire during that narrow transient window,
+  but that's a side effect, not something requested or reliable, and it
+  cannot explain or fix a 30-minute-later completion. **Force-quitting the
+  app is a different event again** (process terminated, not just frozen),
+  but is handled the same way as any other cold start: `init()` already
+  calls `restoreState()` then `checkForExpiry()`, so relaunching after the
+  timer elapsed - locked, backgrounded, or force-quit, doesn't matter which
+  - correctly detects the expiry and completes exactly once
+  (`testColdRelaunchAfterExpiryCompletesAndPausesExactlyOnce`).
+
+- **`BGTaskScheduler` (`BGAppRefreshTask` / `BGProcessingTask`) — not
+  time-precise, not guaranteed to run at all.** Apple's own API contract
+  for `BGTaskScheduler.submit(_:)` is explicit that `earliestBeginDate` is
+  a floor, not a schedule: the system decides the actual run time (if any)
+  using a budget it builds from the person's own usage pattern, battery
+  level, and Low Power Mode - and it additionally requires **Background App
+  Refresh** to be turned on for the app in Settings, which plenty of people
+  disable. A once-a-night utility like this is close to the worst case for
+  that budget (it heavily favors apps opened many times a day), so even a
+  best-effort submission would be as likely to fire hours late, or not that
+  night at all, as it would be to help. It cannot deliver "pauses at
+  minute 30."
+
+- **Local notifications — deliver on time, but don't hand the app any
+  execution time.** Already implemented and confirmed working exactly as
+  documented: `UNTimeIntervalNotificationTrigger` fires at the correct
+  wall-clock time regardless of app state, because delivery is handled by
+  the OS notification daemon, not the app process. But a notification
+  simply *appearing* - whether the person looks at it or not - never runs
+  app code. (A tap on a custom notification *action* button does briefly
+  launch the app in the background to handle it - a real, Apple-documented
+  mechanism - but that's a deliberate action the person has to take, not
+  something that happens on its own, and it's a UI change this task
+  explicitly doesn't make. Worth considering separately.)
+
+- **`AVAudioSession` background audio mode — a real mechanism this app
+  does not qualify to use.** Declaring `UIBackgroundModes: audio` and
+  keeping an `AVAudioSession` active *is* how "keep running all night"
+  apps do it (white-noise/rain-sound apps, meditation timers) - as long as
+  they are actually delivering continuous audio the person asked for.
+  Sleep Timer isn't a media player and has no audio content of its own to
+  play; the only way to adopt this mode would be to play something -
+  including silence - purely to keep the process alive, which
+  [App Review Guideline 2.5.4](https://developer.apple.com/app-store/review/guidelines/)
+  states directly: *"Multitasking apps may only use background services
+  for their intended purposes."* That's not a gray area for an app whose
+  entire feature is pausing *other* apps' audio, so this wasn't
+  implemented, per the explicit constraint on this task.
+
+- **`MPRemoteCommandCenter` — unrelated to this problem.** As established
+  when the pause itself was implemented, it only lets an app *receive*
+  commands already routed to it; it has no bearing on background execution
+  timing either way.
+
+- **Other mechanisms considered and ruled out for this app, for now:**
+  silent/background remote push (`content-available`) *can* wake an app
+  briefly, but needs a server we don't have, and delivery is explicitly
+  best-effort, not guaranteed prompt, on Apple's side too - so it would add
+  real infrastructure and a privacy question (sending timer state off-
+  device) for a timing guarantee it still couldn't make. ActivityKit /
+  Live Activities can show a live Lock Screen countdown but is a display
+  mechanism, not a code-execution trigger - it wouldn't run the pause
+  either. A Shortcuts personal automation (time-of-day trigger calling an
+  App Intent) is genuinely more reliable for *fixed* recurring times, since
+  it rides on the Shortcuts app's own scheduling rather than
+  `BGTaskScheduler`'s budget - but it requires the person to manually set
+  it up outside the app for each schedule, doesn't fit an ad-hoc "N minutes
+  from now" timer well, and is a new feature surface, not a fix to this one.
+
+**Conclusion: no.** There is no Apple-supported, App Store-legitimate
+mechanism available to this app that makes "timer ends while locked →
+media pauses automatically, with no need to reopen the app" reliably true.
+That's a real platform restriction, not a gap in this implementation -
+confirmed against Apple's own documented API contracts and App Review
+guidelines, not assumed. Nothing was added to fake it, and the working
+foreground behavior is untouched.
+
+**What already happens, and why it's the correct behavior given the above:**
+every expiry path - the live per-second tick, the app reactivating in the
+foreground, and a cold relaunch after being force-quit - funnels through
+the same `complete()`, so the pause is attempted exactly once per completed
+timer: immediately if the app is in the foreground when the timer reaches
+zero (the common case - falling asleep with the app open), and as soon as
+the app is next opened or reactivated otherwise. The local notification
+still lands at the exact right time regardless, so the person is alerted
+even before that catch-up happens. This is already the best legitimate
+combination of the mechanisms above, not a placeholder for something
+better.
+
+**Recommended next step, if this gap is worth closing further:** add a
+custom action button (e.g. "Pause Now") to the completion notification via
+`UNNotificationAction`/`UNNotificationCategory`. It's the one option above
+that's fully legitimate, needs no new background mode or server, and turns
+"unlock, open the app, wait for it to catch up" into "tap one button on the
+lock screen without fully unlocking." It does not reach true zero-touch -
+Apple gives no mechanism that does, for an app like this - so it wouldn't
+fully satisfy "no need to reopen the app," only shorten and simplify what
+reopening it requires. It's a UI change, so it's intentionally not part of
+this investigation task.
 
 ### Darkening background
 
