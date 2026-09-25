@@ -12,7 +12,7 @@ import SwiftUI
 /// than `ScrollView`/`.scrollPosition(id:)`. That API resolves position by
 /// picking the "nearest id to the anchor" on every render pass — a heuristic
 /// meant for snapping between a handful of large paged cards — and applying
-/// it to ~176 tick views spaced 18pt apart let it occasionally misreport the
+/// it to ~180 tick views spaced 18pt apart let it occasionally misreport the
 /// centered id under real touch/momentum, which a bidirectional binding to
 /// `selectedMinutes` then turned into a sticky, visible "jump". Plain drag
 /// translation has no such resolution step: the minute is always an exact,
@@ -20,7 +20,7 @@ import SwiftUI
 /// started.
 struct MinuteDialView: View {
     @Binding var selectedMinutes: Int
-    var range: ClosedRange<Int> = 5...180
+    var range: ClosedRange<Int> = 1...180
 
     /// The minute the dial was at when the current drag (if any) began.
     /// Fixed for the entire duration of a single gesture so translation-based

@@ -10,7 +10,7 @@ import XCTest
 /// regression in the dial's math even without a simulator.
 final class MinuteDialMathTests: XCTestCase {
     private let stepWidth: CGFloat = 18
-    private let range = 5...180
+    private let range = 1...180
 
     private func minute(base: Int, translation: CGFloat) -> Int {
         MinuteDialMath.minute(base: base, translation: translation, stepWidth: stepWidth, range: range)

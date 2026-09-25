@@ -173,21 +173,26 @@ drift rather than a discrete theme swap. The setup screen uses a constant
 
 ## App icons
 
-`SleepTimer/iOS/Assets.xcassets/AppIcon.appiconset` uses the full iOS icon
-set supplied in `IconKitchen-Output/ios/` (all 21 idiom/size/scale slots —
-iPhone, iPad, CarPlay, and the 1024×1024 App Store marketing icon), each
-image placed in its exact matching slot rather than derived from a single
-resized source. Every source PNG's alpha channel was fully opaque already
-(verified pixel-by-pixel), so it was losslessly flattened to RGB — required
-because Apple's App Icon slots (especially the 1024 marketing icon) reject
-images with an alpha channel; this changed no pixel's visible color.
+The current icon is the supplied hourglass/moon artwork (a single 840×840
+source with a transparent background, hard rounded corners and a soft glow
+already baked in by its own design). Apple's App Icon slots reject any
+alpha channel, and pasting it as-is onto a plain white or black square would
+have looked visibly "tacked on" against the artwork's own glow — so instead
+the source is alpha-composited onto a solid deep-indigo background
+(`#1C2052`, sampled from the artwork's own edge tones so the fill reads as
+part of the design, not a patch) before being resized. That composite is
+done once at 1024×1024 (upscaled from the 840px source with Lanczos
+resampling, since 1024 is required for the App Store marketing icon and no
+larger source was provided), and every smaller slot is downscaled from that
+same 1024 master rather than re-derived from progressively smaller copies.
 
-No watchOS-specific icon was supplied (the upload only had `ios/`,
-`android/`, and `web/` folders). `SleepTimer Watch App`'s single-size
-`AppIcon.appiconset` (watchOS 9+ apps only need one 1024×1024 "universal"
-source) uses the same flattened 1024 marketing icon as the closest
-appropriate supplied asset. If you have a Watch-specific icon design later,
-just replace `SleepTimer Watch App/Assets.xcassets/AppIcon.appiconset/AppIcon-watch-1024.png`.
+`SleepTimer/iOS/Assets.xcassets/AppIcon.appiconset` keeps the full 21-slot
+legacy icon set (iPhone, iPad, CarPlay, and the 1024×1024 marketing icon),
+each slot filled with the correctly-sized render rather than one image
+stretched to fit. `SleepTimer Watch App`'s single-size `AppIcon.appiconset`
+(watchOS 9+ apps only need one 1024×1024 "universal" source) uses the same
+1024 master. Legibility at the smallest real sizes (20×20, 29×29) was
+checked directly — the hourglass-and-moon silhouette still reads clearly.
 
 ## Known limitation of this change
 
