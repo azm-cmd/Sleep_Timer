@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		25C9C2DCC0F72C2A027AB14B /* MinuteDialMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3D3B63FA75D842A76EEC18 /* MinuteDialMathTests.swift */; };
+		2FA4A68E163B48D94DFC1660 /* FinishedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADB04CE4EE402B1DCFF0A02F /* FinishedView.swift */; };
+		425503BCB2348B658DE1B4EF /* MediaController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F29CAC8385AE5D9506B30C /* MediaController.swift */; };
+		5026894FB2413F67A145A9F5 /* MediaController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F29CAC8385AE5D9506B30C /* MediaController.swift */; };
 		AA0000000000000000000012 /* SleepTimerState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* SleepTimerState.swift */; };
 		AA0000000000000000000013 /* SleepTimerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000002 /* SleepTimerManager.swift */; };
 		AA0000000000000000000014 /* TimeFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000003 /* TimeFormatting.swift */; };
@@ -32,6 +35,7 @@
 		AA0000000000000000000029 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000027 /* Assets.xcassets */; };
 		AA000000000000000000002A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000028 /* Assets.xcassets */; };
 		AA000000000000000000002E /* SleepTimer Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = AA000000000000000000002C /* SleepTimer Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D8EA65AC4A75DE479A0F1C18 /* WatchFinishedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2255276307F541BE49D3DC79 /* WatchFinishedView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -66,6 +70,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		07F29CAC8385AE5D9506B30C /* MediaController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MediaController.swift; sourceTree = "<group>"; };
+		2255276307F541BE49D3DC79 /* WatchFinishedView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchFinishedView.swift; sourceTree = "<group>"; };
 		AA0000000000000000000001 /* SleepTimerState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepTimerState.swift; sourceTree = "<group>"; };
 		AA0000000000000000000002 /* SleepTimerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepTimerManager.swift; sourceTree = "<group>"; };
 		AA0000000000000000000003 /* TimeFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatting.swift; sourceTree = "<group>"; };
@@ -88,6 +94,7 @@
 		AA000000000000000000002B /* SleepTimer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SleepTimer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA000000000000000000002C /* SleepTimer Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "SleepTimer Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA000000000000000000002D /* SleepTimerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SleepTimerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		ADB04CE4EE402B1DCFF0A02F /* FinishedView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinishedView.swift; sourceTree = "<group>"; };
 		FF3D3B63FA75D842A76EEC18 /* MinuteDialMathTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MinuteDialMathTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -142,6 +149,7 @@
 				AA0000000000000000000002 /* SleepTimerManager.swift */,
 				AA0000000000000000000003 /* TimeFormatting.swift */,
 				AA0000000000000000000004 /* DarkeningBackground.swift */,
+				07F29CAC8385AE5D9506B30C /* MediaController.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -165,6 +173,7 @@
 				AA0000000000000000000009 /* SetupView.swift */,
 				AA000000000000000000000A /* RunningView.swift */,
 				AA000000000000000000000B /* CustomAddSheet.swift */,
+				ADB04CE4EE402B1DCFF0A02F /* FinishedView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -186,6 +195,7 @@
 				AA000000000000000000000E /* WatchSetupView.swift */,
 				AA000000000000000000000F /* WatchRunningView.swift */,
 				AA0000000000000000000010 /* WatchCustomAddView.swift */,
+				2255276307F541BE49D3DC79 /* WatchFinishedView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -353,6 +363,8 @@
 				AA000000000000000000001E /* SetupView.swift in Sources */,
 				AA000000000000000000001F /* RunningView.swift in Sources */,
 				AA0000000000000000000020 /* CustomAddSheet.swift in Sources */,
+				425503BCB2348B658DE1B4EF /* MediaController.swift in Sources */,
+				2FA4A68E163B48D94DFC1660 /* FinishedView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -369,6 +381,8 @@
 				AA0000000000000000000023 /* WatchSetupView.swift in Sources */,
 				AA0000000000000000000024 /* WatchRunningView.swift in Sources */,
 				AA0000000000000000000025 /* WatchCustomAddView.swift in Sources */,
+				5026894FB2413F67A145A9F5 /* MediaController.swift in Sources */,
+				D8EA65AC4A75DE479A0F1C18 /* WatchFinishedView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

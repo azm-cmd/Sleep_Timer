@@ -8,11 +8,15 @@ struct ContentView: View {
             if manager.isRunning {
                 RunningView()
                     .transition(.opacity.combined(with: .scale(scale: 1.02)))
+            } else if manager.didFinish {
+                FinishedView()
+                    .transition(.opacity)
             } else {
                 SetupView()
                     .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.6), value: manager.isRunning)
+        .animation(.easeInOut(duration: 0.6), value: manager.didFinish)
     }
 }

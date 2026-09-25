@@ -39,16 +39,18 @@ SleepTimer/
     SleepTimerManager.swift   @MainActor ObservableObject: start/add/cancel, persistence, 1s ticker
     TimeFormatting.swift      countdown string formatting
     DarkeningBackground.swift shared "sleepy" gradient background, driven by progress
+    MediaController.swift     MediaPausing abstraction; pauses system media via AVAudioSession
   iOS/
     SleepTimerApp.swift, ContentView.swift
-    Views/                    SetupView, MinuteDialView, RunningView, CustomAddSheet, GlassComponents
+    Views/                    SetupView, MinuteDialView, RunningView, FinishedView, CustomAddSheet, GlassComponents
     Assets.xcassets
 SleepTimer Watch App/
   SleepTimerWatchApp.swift, WatchContentView.swift
-  Views/                      WatchSetupView, WatchRunningView, WatchCustomAddView
+  Views/                      WatchSetupView, WatchRunningView, WatchFinishedView, WatchCustomAddView
   Assets.xcassets
 SleepTimerTests/
   SleepTimerManagerTests.swift
+  MinuteDialMathTests.swift
 ```
 
 `Shared/` files are compiled into *both* app targets directly (not a separate
@@ -82,16 +84,62 @@ intentionally out of scope for this pass.
 
 ### The minute dial (iPhone)
 
-`MinuteDialView` is a from-scratch ruler control: a horizontal `ScrollView`
-with `.scrollTargetBehavior(.viewAligned)` snapping to one-minute ticks,
-centered via half-width leading/trailing padding. The large numeral is kept
-out of the view hierarchy until `.onScrollPhaseChange` reports a real
-user-driven phase (`.interacting`/`.decelerating`, as opposed to the
-`.animating` phase produced by a programmatic scroll), at which point it
-animates in from below with `.move(edge: .bottom).combined(with: .opacity)`.
-Tapping a preset moves the ruler to match (so it stays visually in sync)
-without revealing the numeral, since that wasn't direct interaction with the
-dial.
+`MinuteDialView` is a from-scratch ruler control driven by a plain
+`DragGesture`, not `ScrollView`/`.scrollPosition(id:)` (an earlier version
+used that API; it resolves position via a "nearest id to the anchor"
+heuristic meant for snapping between a handful of large paged cards, which
+misbehaved against ~176 closely-spaced tick views under real touch). The
+selected minute is `committedMinutes - translation / stepWidth`, clamped to
+the range — the same formula drives both the rendered tick position and the
+selected value, so they can't disagree, and it's a deterministic, monotonic
+function of finger displacement with no heuristic resolution step to
+misfire. The core arithmetic lives in the pure, unit-tested `MinuteDialMath`
+enum. The large numeral is kept out of the view hierarchy until a real drag
+begins (`hasInteracted`), at which point it animates in from below with
+`.move(edge: .bottom).combined(with: .opacity)`. Tapping a preset moves the
+ruler to match (so it stays visually in sync) without revealing the
+numeral, since that wasn't direct interaction with the dial — enforced by a
+`@GestureState isDragging` guard so a preset's external write can't land
+mid-gesture and corrupt that gesture's base value.
+
+### Media pause on completion
+
+`MediaController` (`MediaPausing` protocol + `MediaController`
+implementation) is the only thing `SleepTimerManager.complete()` calls out
+to, and the manager depends on the protocol, not the concrete type, so tests
+inject a spy instead of touching real audio hardware.
+
+`MPRemoteCommandCenter` — the API most associated with "media remote
+control" — turns out not to be sufficient by itself: it only lets an app
+*receive* remote-control events already routed to whichever app owns "Now
+Playing" status; there's no public API for one app to *send* a pause
+command into a different app's session, and Sleep Timer isn't a media
+player with a Now Playing session of its own. The mechanism that actually
+works generically, without targeting or knowing about any specific app, is
+`AVAudioSession` interruption: briefly activating our own session with the
+`.playback` category asks iOS to interrupt whatever else is currently
+playing — the same system-level contract that silences background music for
+a phone call or a Siri request, and every App Store-compliant playback app
+must honor it. Deactivating again *without* `.notifyOthersOnDeactivation`
+keeps the interrupted app paused rather than inviting it to resume
+immediately.
+
+**Honest limitation:** there is no Apple-supported way for a normal app
+(no special entitlement, no continuous background audio session) to
+guarantee this runs at the *exact* moment the timer hits zero while the
+phone is locked and the app is fully suspended — `BGTaskScheduler` is
+opportunistic and not time-precise, and a local notification firing in the
+background does not hand the app execution time to act on it. In practice
+the pause fires: immediately, if the app is in the foreground when the
+timer reaches zero (the common case — falling asleep with the app open);
+and as soon as the app is reopened or reactivated afterward, if the timer
+expired while backgrounded or the process was killed entirely — every
+expiry path (live tick, foreground reactivation, and cold relaunch) now
+funnels through the same `complete()`, so the pause is always attempted
+exactly once per completed timer, just not necessarily at the literal
+instant of expiry if nobody touched the phone before then. The already-
+existing local notification still fires at the correct time regardless, so
+the person is alerted even before that catch-up happens.
 
 ### Darkening background
 
@@ -108,17 +156,20 @@ drift rather than a discrete theme swap. The setup screen uses a constant
 - Running countdown, +5 min, custom add (sheet/crown), Cancel — both platforms
 - Continuous background darkening tied to timer progress — both platforms
 - Absolute-end-date timer math; state persists across background/lock/relaunch
-- Unit tests for start/add/cancel/persistence/expiry
+- Unit tests for start/add/cancel/persistence/expiry, and for the dial's
+  drag-to-minute arithmetic
 - Local notification on timer completion
+- System media pause on completion (see "Media pause on completion" above),
+  and a calm "Good Night" finished state instead of a stuck 00:00
 
 ## What's intentionally not implemented yet
 
-- **Media playback pause** — explicitly deferred per the brief; will need
-  `MPNowPlayingInfoCenter`/`MPRemoteCommandCenter` (or a Shortcuts-based
-  approach) layered on top of `SleepTimerManager.complete()`.
 - **Live iPhone↔Watch sync via WatchConnectivity** — each device is fully
   functional standalone today; wiring `WCSession` to mirror
   `SleepTimerManager.state` between devices is the natural next step.
+- **Per-app / streaming-service-specific media integration** — deliberately
+  out of scope; the pause mechanism is generic and app-agnostic by design
+  (see above), not a Spotify/Apple Music/Podcasts-specific integration.
 
 ## App icons
 

@@ -7,10 +7,13 @@ struct WatchContentView: View {
         ZStack {
             if manager.isRunning {
                 WatchRunningView()
+            } else if manager.didFinish {
+                WatchFinishedView()
             } else {
                 WatchSetupView()
             }
         }
         .animation(.easeInOut(duration: 0.5), value: manager.isRunning)
+        .animation(.easeInOut(duration: 0.5), value: manager.didFinish)
     }
 }

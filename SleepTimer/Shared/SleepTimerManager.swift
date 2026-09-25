@@ -18,15 +18,27 @@ final class SleepTimerManager: ObservableObject {
 
     @Published private(set) var state: SleepTimerState?
     @Published private(set) var now: Date = Date()
+    /// True from the moment the timer naturally completes until the person
+    /// acknowledges the finished screen (or starts a new timer). Never set
+    /// by `cancel()` — cancelling is a deliberate user action, not completion.
+    @Published private(set) var didFinish = false
 
     private let defaults: UserDefaults
+    private let mediaController: MediaPausing
     private let stateKey = "com.azm.sleeptimer.activeState"
     private let notificationID = "com.azm.sleeptimer.completion"
     private var ticker: AnyCancellable?
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, mediaController: MediaPausing = MediaController()) {
         self.defaults = defaults
+        self.mediaController = mediaController
         restoreState()
+        // Catches the case where the process was fully relaunched (not just
+        // foregrounded) after the timer's end date already passed while
+        // backgrounded — e.g. the app was terminated overnight. Without
+        // this, a cold launch would silently discard the expired state
+        // without ever attempting the pause or showing the finished screen.
+        checkForExpiry(at: Date())
         ticker = Timer.publish(every: 1.0, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] date in
@@ -48,6 +60,7 @@ final class SleepTimerManager: ObservableObject {
         let start = Date()
         state = SleepTimerState(startDate: start, endDate: start.addingTimeInterval(duration))
         now = start
+        didFinish = false
         persist()
         scheduleCompletionNotification()
     }
@@ -66,19 +79,33 @@ final class SleepTimerManager: ObservableObject {
         cancelCompletionNotification()
     }
 
+    /// Call once the person has seen the "finished" screen (or is starting
+    /// a new timer) to return to the normal setup state.
+    func acknowledgeFinished() {
+        didFinish = false
+    }
+
     /// Call when the app becomes active again (foreground / relaunch) to
     /// re-derive remaining time from persisted state rather than trusting
     /// whatever was last held in memory.
     func refreshFromPersistence() {
         restoreState()
         now = Date()
-        if let state, state.isExpired(asOf: now) {
-            complete()
-        }
+        checkForExpiry(at: now)
     }
 
     private func tick(at date: Date) {
         now = date
+        checkForExpiry(at: date)
+    }
+
+    /// The single place a live timer is recognized as having reached zero,
+    /// whether that's discovered by the live per-second tick, by the app
+    /// reactivating after being backgrounded, or by a cold relaunch after
+    /// the end date already passed. Every one of those paths funnels
+    /// through `complete()`, so the pause attempt and the finished-state
+    /// flag each fire exactly once per completed timer.
+    private func checkForExpiry(at date: Date) {
         if let state, state.isExpired(asOf: date) {
             complete()
         }
@@ -88,6 +115,8 @@ final class SleepTimerManager: ObservableObject {
         state = nil
         persist()
         cancelCompletionNotification()
+        mediaController.pauseCurrentMedia()
+        didFinish = true
     }
 
     private func restoreState() {
@@ -96,12 +125,7 @@ final class SleepTimerManager: ObservableObject {
             state = nil
             return
         }
-        if decoded.isExpired(asOf: Date()) {
-            state = nil
-            defaults.removeObject(forKey: stateKey)
-        } else {
-            state = decoded
-        }
+        state = decoded
     }
 
     private func persist() {
