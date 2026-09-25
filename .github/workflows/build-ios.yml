@@ -154,6 +154,27 @@ jobs:
           mkdir -p "$PAYLOAD_DIR"
           cp -R "$APP_PATH" "$PAYLOAD_DIR/"
 
+          # Strip the embedded Watch app before packaging. Sideloadly (free-tier,
+          # personal-team signing) cannot pair/install a companion Watch app onto
+          # a physically paired Apple Watch in the first place - only Xcode or the
+          # App Store can do that - so it does nothing useful here. Worse, when
+          # Sideloadly re-signs with a free Apple ID it commonly has to append a
+          # random suffix to the bundle ID to avoid an App ID conflict on your
+          # personal team (e.g. com.azm.SleepTimer -> com.azm.SleepTimer.VZ3XGS45FB).
+          # Our build-time IPA can't predict that suffix, so the Watch app's
+          # already-baked-in WKCompanionAppBundleIdentifier (still the original,
+          # un-suffixed ID) no longer matches the resigned parent app, and iOS
+          # refuses the whole install with InvalidCompanionAppBundleIdentifier.
+          # Removing the Watch app avoids that check entirely; the iPhone app is
+          # unaffected either way.
+          EMBEDDED_WATCH_APP="$PAYLOAD_DIR/${APP_NAME}.app/Watch"
+          if [ -d "$EMBEDDED_WATCH_APP" ]; then
+            echo "Removing embedded Watch app before packaging: $EMBEDDED_WATCH_APP"
+            rm -rf "$EMBEDDED_WATCH_APP"
+          else
+            echo "No embedded Watch app found at $EMBEDDED_WATCH_APP (nothing to strip)."
+          fi
+
           (cd "$PACKAGE_ROOT" && zip -r -y -q "$GITHUB_WORKSPACE/$IPA_PATH" "Payload")
 
       - name: Verify IPA was produced
