@@ -58,8 +58,9 @@ SleepTimer/
   iOS/
     SleepTimerApp.swift, ContentView.swift
     Views/                    SetupView, MinuteDialView, RunningView, FinishedView, CustomAddSheet, GlassComponents
-    Views/Onboarding/         OnboardingView (Welcome → How It Works → Set Up → Test → Done)
+    Views/Onboarding/         OnboardingView (Welcome → How It Works → Notifications → Set Up → Test → Done)
     Intents/                  PauseCurrentMediaIntent, SleepTimerAppShortcuts (App Shortcuts registration)
+    Notifications/            NotificationPermission.swift (NotificationAuthorizing abstraction + view model)
     Assets.xcassets
 SleepTimerWidgets/             widget extension target (Live Activity UI only, no app logic of its own)
   SleepTimerLiveActivityWidget.swift
@@ -70,6 +71,7 @@ SleepTimer Watch App/
   Assets.xcassets
 SleepTimerTests/
   SleepTimerManagerTests.swift  (includes SpyMediaController, SpyActivityController)
+  NotificationPermissionViewModelTests.swift  (includes SpyNotificationAuthorizer)
   MinuteDialMathTests.swift
 ```
 
@@ -330,47 +332,69 @@ follows.
 ### Setting up automatic media pause (onboarding)
 
 A first-launch flow (`OnboardingView`, also reachable later from the info
-button on the setup screen) walks through Welcome → How It Works → Set Up →
-Test → Done. Before building the "Set Up" step, two things were verified
-against Apple's own documentation rather than assumed:
+button on the setup screen) walks through Welcome → How It Works →
+Notifications → Set Up → Test → Done.
+
+**Correction from an earlier pass:** this README previously claimed
+Shortcuts has no automation trigger for "a specific app's notification
+arrived," and steered the "Set Up" step toward a Time of Day trigger
+instead. That claim was wrong, re-verified this pass against Apple's
+current Shortcuts documentation (the "Event triggers in Shortcuts" support
+guide) and multiple independent walkthroughs: Personal Automation's
+**Notification** trigger exists exactly as described — "Specify the app a
+notification will be received from, and add filters for Message, Subtitle,
+or Title" — and leaving those filters blank matches every notification
+from the chosen app. So the flow this feature was originally framed around
+— "timer ends → Sleep Timer notification → automation reacts to it" — is
+buildable, and onboarding now teaches exactly that, rather than the
+Time-of-Day workaround.
+
+What's still true, and unchanged by that correction:
 
 - **A third-party app cannot install a Shortcuts automation for someone.**
   There is no public API or URL scheme for it. `shortcuts://create-shortcut`
   opens the shortcut *editor* for a plain shortcut, requiring the person to
   review and save it themselves; there is nothing equivalent for
   *automations* (the trigger+action pairing under the Automation tab) at
-  all — those can only be built by hand, in the Shortcuts app.
-- **There is no "app sent a notification" automation trigger, at all,
-  for anyone to use — with or without our involvement.** This is more
-  fundamental than an installation restriction: even if a person builds a
-  personal automation by hand, Shortcuts has no trigger type for "a
-  specific app's notification arrived." (Checked against Apple's current
-  Shortcuts trigger list; the closest built-in trigger is a *Message*
-  received from a chosen sender matching text, which is a different
-  feature entirely.) So the flow this feature was originally framed around
-  — "timer ends → Sleep Timer notification → automation reacts to it" —
-  isn't buildable in Shortcuts by anyone, not just by an app trying to set
-  it up automatically.
+  all — those can only be built by hand, in the Shortcuts app. So this is a
+  **Personal Automation the person creates once**, not a "Shortcut" they
+  run manually each night, and onboarding's copy is careful to say so.
 
-What *is* fully automatic, and already true by the time onboarding ever
-runs: `PauseCurrentMediaIntent` (wrapping the exact same
-`MediaController.pauseCurrentMedia()` the timer uses) is registered via
-`SleepTimerAppShortcuts: AppShortcutsProvider`, which means it appears in
-Siri, Spotlight, and the Shortcuts app's per-app action list the moment the
-app is installed — no button to tap, no setup screen, no permission prompt.
-That's the one piece of "add Sleep Timer to Shortcuts" iOS lets an app do
-for someone.
+**Notifications**, the new step right after "How It Works," requests
+`UNUserNotificationCenter` authorization explicitly — via a small
+`NotificationAuthorizing` abstraction (`SystemNotificationAuthorizer` +
+`NotificationPermissionViewModel`, same spy-testable pattern as
+`MediaPausing`/`ActivityControlling`) — rather than only lazily the first
+time a timer starts. It's a hard dependency for the mechanism above: with
+the phone locked, Sleep Timer's own notification is the only signal that
+can wake the automation, so if it's off, the background half of "automatic
+pause" cannot work at all. If the person denies it (or already has), the
+same step offers "Open Settings" (`UIApplication.openSettingsURLString`)
+rather than dead-ending; they can also continue without it and enable it
+later.
 
-Given that, "Set Up" implements the closest legitimate flow rather than
-inventing one: its primary button opens the Shortcuts app
-(`shortcuts://`), and concise numbered steps cover the part that has to
-stay manual — creating a personal automation (a **Time of Day** trigger is
-the closest fit for "run this around my usual bedtime," since no better
-trigger exists) that runs the now-discoverable "Pause Current Media"
-action. "Test It" calls `MediaController().pauseCurrentMedia()` directly,
-so the one genuinely uncertain part — whether the pause mechanism itself
-works on your setup — can be checked immediately, independent of whether
-Shortcuts automation is ever configured.
+**Set Up** opens the Shortcuts app (`shortcuts://`) — still the one piece
+of "one-tap toward Shortcuts" a legitimate API offers, since nothing lets
+an app pre-fill or install the automation itself — and its numbered steps
+now teach the verified Notification-trigger automation directly:
+Automation → **+** → Create Personal Automation → **Notification** → App:
+**Sleep Timer** (filters left blank) → Add Action → **Media: Play/Pause**,
+set to Pause on iPhone (Apple's own built-in system media action, not
+`PauseCurrentMediaIntent` — this automation doesn't need Sleep Timer's
+process running at all) → turn off **Ask Before Running**, turn on **Allow
+Running When Locked** if offered → Done. **Test Setup** then walks through
+verifying the real thing — play audio, start a short timer, lock the
+phone, confirm it's already paused on wake — plus a secondary "Also Test
+In-App Pause" button that still calls `MediaController().pauseCurrentMedia()`
+directly, checking the foreground mechanism in isolation.
+
+Separately, and still fully automatic with zero setup:
+`PauseCurrentMediaIntent` (wrapping the same `MediaController
+.pauseCurrentMedia()`) is registered via `SleepTimerAppShortcuts:
+AppShortcutsProvider`, so it appears in Siri, Spotlight, and the Shortcuts
+app's per-app action list the moment the app is installed — a second,
+independent way to trigger the same pause, not part of the Notification
+automation above.
 
 ### Darkening background
 
@@ -396,11 +420,15 @@ drift rather than a discrete theme swap. The setup screen uses a constant
   working +5 min / +10 min / Cancel controls — iPhone only, per this pass
 - "Pause Current Media" App Intent, discoverable via Siri/Spotlight/Shortcuts
   with zero setup (`SleepTimerAppShortcuts`)
-- First-launch onboarding explaining automatic media pause, with an honest
-  "Set Up in Shortcuts" flow and a "Test It" step, re-openable from an info
-  button on the setup screen
+- First-launch onboarding explaining automatic media pause — Welcome, How It
+  Works, an explicit notification-permission request with a Settings
+  fallback, "Set Up" (the verified Notification-trigger Personal
+  Automation), and "Test Setup" — re-openable from an info button on the
+  setup screen
 - Unit tests for the Live Activity lifecycle (start/update/end sequencing)
-  via a spy `ActivityControlling`, alongside the existing timer/media tests
+  via a spy `ActivityControlling`, and for the onboarding notification-
+  permission step via a spy `NotificationAuthorizing`, alongside the
+  existing timer/media tests
 
 ## What's intentionally not implemented yet
 
@@ -486,3 +514,48 @@ usage in `PauseCurrentMediaIntent.swift`/`SleepTimerAppShortcuts.swift`;
 and, as before, newer Liquid Glass API names or the watchOS
 `digitalCrownRotation` overload, since all of these depend on the exact
 iOS/watchOS 26 SDK you have installed.
+
+**This pass's changes specifically, and how they were checked:** only one
+new source file was added (`SleepTimer/iOS/Notifications/
+NotificationPermission.swift`, into the existing `SleepTimer` and
+`SleepTimerTests` targets via the `xcodeproj` gem — confirmed by re-running
+the same structural validation as above: source counts went from 19→20 and
+2→3 respectively, and the `git diff` of `project.pbxproj` is purely
+additive, same as every prior pass). No new target, no new Info.plist keys,
+and no new entitlements this time, so the risk profile is lower than the
+Live Activity/widget-extension pass before it. Two things still specifically
+need a real device or Simulator, not just a compiler:
+- `NotificationPermissionStep`'s use of `UIApplication.openSettingsURLString`
+  (requires `import UIKit`, added to `OnboardingView.swift`) — confirm it
+  actually opens Sleep Timer's own notification settings page, not just
+  Settings.app's root.
+- The onboarding copy's exact wording for the Shortcuts **Notification**
+  trigger and the **Media: Play/Pause** action against whatever iOS version
+  you're on — button labels and step order in Shortcuts have shifted across
+  iOS releases before, and this pass's copy was verified against Apple's
+  documentation and current guides, not against a running Shortcuts app.
+
+**A correction from the previous pass, worth flagging explicitly:** that
+pass's README and onboarding copy stated Shortcuts has no automation
+trigger for "a specific app's notification arrived," and had "Set Up"
+recommend a Time of Day trigger instead. That was wrong — re-checked this
+pass against Apple's own "Event triggers in Shortcuts" documentation, which
+lists a **Notification** trigger described exactly as "Specify the app a
+notification will be received from, and add filters for Message, Subtitle,
+or Title." Onboarding and this README have been corrected to teach that
+trigger directly (see "Setting up automatic media pause" above). It's a
+reminder that "verified via WebSearch summaries" in an earlier pass isn't
+infallible — this pass went to Apple's documentation more directly, but the
+Shortcuts UI itself still can't be exercised here, hence the verification
+item just above.
+
+**GitHub Actions build (`.github/workflows/build-ios.yml`):** no changes
+were needed to the workflow itself this pass — it builds/archives whatever
+targets and files the `.xcodeproj` declares, and the one file added this
+pass joins two existing targets rather than requiring a new build phase,
+embed step, or Info.plist entry. `UNUserNotificationCenter` authorization
+(used both by the new onboarding step and the existing lazy request in
+`SleepTimerManager`) needs no `Info.plist` usage-description key on iOS,
+unlike camera/location/etc. — worth double-checking on the actual macOS
+runner's build log regardless, since that's exactly the kind of assumption
+that's cheap to get wrong and expensive to debug blind.

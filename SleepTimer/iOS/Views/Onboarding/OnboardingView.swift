@@ -1,18 +1,24 @@
 import SwiftUI
+import UIKit
 
 /// First-launch setup flow explaining automatic media pause, and the same
 /// flow re-openable later from SetupView's info button. Shown as a sheet
 /// over the existing Setup screen, never replacing it — the main timer UI
 /// is untouched by this feature.
 ///
-/// Flow: Welcome → How It Works → Set Up → Test → Done. "Set Up" is honest
-/// about what iOS actually allows here (see SleepTimerAppShortcuts.swift
-/// and README.md): there is no API for a third-party app to install a
-/// Shortcuts automation, and no "app sent a notification" trigger exists
-/// for Shortcuts to react to in the first place, so the last step is
-/// necessarily manual. What Sleep Timer *can* do automatically — make its
-/// pause action available in Shortcuts via an App Shortcut, with zero setup
-/// — it already has, by the time this view ever appears.
+/// Flow: Welcome → How It Works → Notifications → Set Up → Test → Done.
+///
+/// The mechanism, in full: with the app open, Sleep Timer pauses media
+/// directly when a timer ends. Locked or backgrounded, it can't reach into
+/// other apps itself, so it relies on a Personal Automation the person
+/// creates once in Shortcuts, triggered by Sleep Timer's own completion
+/// notification (a "Notification" automation trigger scoped to this app —
+/// see README.md's "Setting up automatic media pause" section). iOS has no
+/// API for a third-party app to install that automation on someone's
+/// behalf, so "Set Up" walks through creating it by hand; what Sleep Timer
+/// *can* do automatically — open Shortcuts, and expose its own pause action
+/// as an App Shortcut with zero setup (see SleepTimerAppShortcuts.swift) —
+/// it already does.
 struct OnboardingView: View {
     var isReplay: Bool = false
     var onFinished: () -> Void
@@ -20,7 +26,7 @@ struct OnboardingView: View {
     @State private var step: Step = .welcome
 
     private enum Step: Int, CaseIterable {
-        case welcome, howItWorks, setUp, test, done
+        case welcome, howItWorks, notifications, setUp, test, done
     }
 
     var body: some View {
@@ -44,6 +50,8 @@ struct OnboardingView: View {
                         WelcomeStep(onContinue: advance)
                     case .howItWorks:
                         HowItWorksStep(onContinue: advance)
+                    case .notifications:
+                        NotificationPermissionStep(onContinue: advance)
                     case .setUp:
                         SetUpStep(onContinue: advance)
                     case .test:
@@ -99,6 +107,17 @@ private struct OnboardingPrimaryButton: View {
     }
 }
 
+private struct OnboardingSecondaryButton: View {
+    let title: String
+    var action: () -> Void
+
+    var body: some View {
+        Button(title, action: action)
+            .font(.system(size: 14, weight: .medium, design: .rounded))
+            .foregroundStyle(.white.opacity(0.55))
+    }
+}
+
 // MARK: - Steps
 
 private struct WelcomeStep: View {
@@ -141,16 +160,16 @@ private struct HowItWorksStep: View {
                     .font(.system(size: 22, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
-                Text("With the app open, Sleep Timer pauses your media the moment its countdown reaches zero.")
+                Text("There are two situations, handled two different ways.")
                     .font(.system(size: 15, weight: .regular, design: .rounded))
                     .foregroundStyle(.white.opacity(0.6))
                     .multilineTextAlignment(.center)
             }
 
             VStack(alignment: .leading, spacing: 16) {
-                InfoRow(icon: "lock.fill", text: "For nights your phone is locked, add a one-time Shortcuts automation.")
-                InfoRow(icon: "clock.fill", text: "Pick a trigger like your usual bedtime, and have it run Sleep Timer's built-in \u{201C}Pause Current Media\u{201D} action.")
-                InfoRow(icon: "checkmark.seal.fill", text: "It takes about a minute, and you only set it up once.")
+                InfoRow(icon: "app.badge.fill", text: "App open: Sleep Timer pauses your media itself, the instant the countdown reaches zero.")
+                InfoRow(icon: "lock.fill", text: "Phone locked or app backgrounded: Sleep Timer can't reach other apps while suspended. Its notification is what triggers a one-time Shortcuts automation that pauses for you.")
+                InfoRow(icon: "checkmark.seal.fill", text: "You'll turn on notifications and set that automation up next — about a minute, once.")
             }
 
             Spacer()
@@ -176,6 +195,83 @@ private struct InfoRow: View {
     }
 }
 
+private struct NotificationPermissionStep: View {
+    let onContinue: () -> Void
+
+    @StateObject private var viewModel = NotificationPermissionViewModel()
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Spacer()
+
+            Image(systemName: "bell.badge.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.cyan)
+
+            VStack(spacing: 10) {
+                Text("Allow Notifications")
+                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                Text("Required for background pause: while your phone is locked, Sleep Timer's notification is what wakes the Shortcuts automation that pauses your media.")
+                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .multilineTextAlignment(.center)
+            }
+
+            statusBadge
+
+            Spacer()
+
+            VStack(spacing: 12) {
+                OnboardingPrimaryButton(title: primaryTitle, action: primaryAction)
+                if viewModel.status != .authorized {
+                    OnboardingSecondaryButton(title: "Continue Without Notifications", action: onContinue)
+                }
+            }
+        }
+        .onAppear { viewModel.refreshStatus() }
+    }
+
+    @ViewBuilder
+    private var statusBadge: some View {
+        switch viewModel.status {
+        case .authorized:
+            Label("Notifications Enabled", systemImage: "checkmark.circle.fill")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(.green)
+        case .denied:
+            Label("Notifications Off", systemImage: "exclamationmark.triangle.fill")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(.orange)
+        case .notDetermined:
+            EmptyView()
+        }
+    }
+
+    private var primaryTitle: String {
+        switch viewModel.status {
+        case .authorized: return "Continue"
+        case .denied: return "Open Settings"
+        case .notDetermined: return "Allow Notifications"
+        }
+    }
+
+    private func primaryAction() {
+        switch viewModel.status {
+        case .authorized:
+            onContinue()
+        case .denied:
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                openURL(url)
+            }
+        case .notDetermined:
+            viewModel.requestPermission()
+        }
+    }
+}
+
 private struct SetUpStep: View {
     let onContinue: () -> Void
 
@@ -183,25 +279,27 @@ private struct SetUpStep: View {
     @State private var didOpenShortcuts = false
 
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 16) {
             Spacer(minLength: 8)
 
             VStack(spacing: 8) {
-                Text("Set Up in Shortcuts")
+                Text("Set Up the Automation")
                     .font(.system(size: 22, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
-                Text("iOS doesn't let apps install automations for you, so this last step is manual. Sleep Timer opens Shortcuts for you — the rest takes about a minute.")
+                Text("A one-time Personal Automation — not something you run yourself. iOS doesn't let apps install this for you, so Sleep Timer opens Shortcuts and you finish it, once.")
                     .font(.system(size: 13, weight: .regular, design: .rounded))
                     .foregroundStyle(.white.opacity(0.6))
                     .multilineTextAlignment(.center)
             }
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 9) {
                 StepRow(number: 1, text: "Tap Automation, then the + button.")
                 StepRow(number: 2, text: "Choose \u{201C}Create Personal Automation.\u{201D}")
-                StepRow(number: 3, text: "Pick a trigger — Time of Day works well for a regular bedtime.")
-                StepRow(number: 4, text: "Tap Add Action, search \u{201C}Sleep Timer,\u{201D} and choose \u{201C}Pause Current Media.\u{201D}")
-                StepRow(number: 5, text: "Turn off \u{201C}Ask Before Running,\u{201D} then tap Done.")
+                StepRow(number: 3, text: "Scroll down and choose \u{201C}Notification.\u{201D}")
+                StepRow(number: 4, text: "Set App to \u{201C}Sleep Timer.\u{201D} Leave the other fields blank.")
+                StepRow(number: 5, text: "Tap Next, Add Action, search \u{201C}Play/Pause,\u{201D} and set it to Pause on iPhone.")
+                StepRow(number: 6, text: "Turn off \u{201C}Ask Before Running.\u{201D} If shown, turn on \u{201C}Allow Running When Locked.\u{201D}")
+                StepRow(number: 7, text: "Tap Done.")
             }
 
             Spacer(minLength: 8)
@@ -242,17 +340,23 @@ private struct TestStep: View {
     @State private var didTest = false
 
     var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
+        VStack(spacing: 18) {
+            Spacer(minLength: 8)
 
-            VStack(spacing: 10) {
-                Text("Test It")
+            VStack(spacing: 8) {
+                Text("Test Setup")
                     .font(.system(size: 22, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
-                Text("Play some music or a podcast, then tap the button below. It's the exact same pause Sleep Timer triggers automatically.")
-                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                Text("Confirm the automation actually runs before trusting it overnight.")
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
                     .foregroundStyle(.white.opacity(0.6))
                     .multilineTextAlignment(.center)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                StepRow(number: 1, text: "Play some music or a podcast.")
+                StepRow(number: 2, text: "Start a short Sleep Timer, then lock your phone.")
+                StepRow(number: 3, text: "Wait for it to end. Your media should already be paused when you check — no unlocking or opening the app needed.")
             }
 
             Button {
@@ -262,10 +366,10 @@ private struct TestStep: View {
                 }
             } label: {
                 Label(
-                    didTest ? "Paused" : "Pause Current Media Now",
+                    didTest ? "In-App Pause Works" : "Also Test In-App Pause",
                     systemImage: didTest ? "checkmark.circle.fill" : "pause.circle.fill"
                 )
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 4)
             }
@@ -273,7 +377,7 @@ private struct TestStep: View {
             .tint(didTest ? .green : nil)
             .foregroundStyle(.white)
 
-            Spacer()
+            Spacer(minLength: 8)
             OnboardingPrimaryButton(title: "Continue", action: onContinue)
         }
     }
@@ -294,7 +398,7 @@ private struct DoneStep: View {
                 Text("You're All Set")
                     .font(.system(size: 24, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
-                Text("Sleep Timer will pause your media automatically whenever a timer ends.")
+                Text("Sleep Timer will pause your media automatically whenever a timer ends. Reopen this guide anytime from the info button on the main screen.")
                     .font(.system(size: 15, weight: .regular, design: .rounded))
                     .foregroundStyle(.white.opacity(0.6))
                     .multilineTextAlignment(.center)

@@ -14,14 +14,9 @@ struct SetupView: View {
             VStack(spacing: 34) {
                 Spacer(minLength: 12)
 
-                VStack(spacing: 6) {
-                    Text("Sleep Timer")
-                        .font(.system(size: 28, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white)
-                    Text("Drift off to sound, wake to silence")
-                        .font(.system(size: 14, weight: .regular, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.5))
-                }
+                Text("Sleep Timer")
+                    .font(.system(size: 28, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
 
                 GlassEffectContainer {
                     LazyVGrid(
