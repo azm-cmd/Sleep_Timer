@@ -275,12 +275,15 @@
 				TargetAttributes = {
 					AA0000000000000000000038 = {
 						CreatedOnToolsVersion = 16.2;
+						ProvisioningStyle = Automatic;
 					};
 					AA0000000000000000000039 = {
 						CreatedOnToolsVersion = 16.2;
+						ProvisioningStyle = Automatic;
 					};
 					AA000000000000000000003A = {
 						CreatedOnToolsVersion = 16.2;
+						ProvisioningStyle = Automatic;
 						TestTargetID = AA0000000000000000000038;
 					};
 				};
@@ -578,7 +581,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Sleep Timer";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "com.azm.SleepTimer";
 				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;
@@ -607,7 +609,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Sleep Timer";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "com.azm.SleepTimer";
 				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;

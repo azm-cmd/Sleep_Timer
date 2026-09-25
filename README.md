@@ -16,6 +16,20 @@ schemes are checked in (`xcshareddata/xcschemes`), so they're available
 immediately after cloning — no need to let Xcode auto-generate them first.
 The **SleepTimer** scheme also runs the `SleepTimerTests` unit tests.
 
+## Signing
+
+All three targets use automatic signing (`CODE_SIGN_STYLE = Automatic`,
+`ProvisioningStyle = Automatic`) with no `DEVELOPMENT_TEAM` baked in — that's
+intentionally left for you to set per-machine. On first open, select each
+target in **Signing & Capabilities** and choose your team; Xcode will
+provision both the iPhone and Watch app automatically for a device build
+(the bundle IDs — `com.azm.SleepTimer` and `com.azm.SleepTimer.watchkitapp` —
+are placeholders, so if they collide with an existing App ID in your account,
+change them there, in both targets, keeping the `.watchkitapp` suffix
+relationship). No entitlements are required for anything currently
+implemented (timer state uses local `UserDefaults`, completion alerts use
+local — not remote/push — notifications).
+
 ## Architecture
 
 ```
@@ -105,7 +119,24 @@ drift rather than a discrete theme swap. The setup screen uses a constant
 - **Live iPhone↔Watch sync via WatchConnectivity** — each device is fully
   functional standalone today; wiring `WCSession` to mirror
   `SleepTimerManager.state` between devices is the natural next step.
-- App icon artwork — the asset catalogs have empty `AppIcon` placeholders.
+
+## App icons
+
+`SleepTimer/iOS/Assets.xcassets/AppIcon.appiconset` uses the full iOS icon
+set supplied in `IconKitchen-Output/ios/` (all 21 idiom/size/scale slots —
+iPhone, iPad, CarPlay, and the 1024×1024 App Store marketing icon), each
+image placed in its exact matching slot rather than derived from a single
+resized source. Every source PNG's alpha channel was fully opaque already
+(verified pixel-by-pixel), so it was losslessly flattened to RGB — required
+because Apple's App Icon slots (especially the 1024 marketing icon) reject
+images with an alpha channel; this changed no pixel's visible color.
+
+No watchOS-specific icon was supplied (the upload only had `ios/`,
+`android/`, and `web/` folders). `SleepTimer Watch App`'s single-size
+`AppIcon.appiconset` (watchOS 9+ apps only need one 1024×1024 "universal"
+source) uses the same flattened 1024 marketing icon as the closest
+appropriate supplied asset. If you have a Watch-specific icon design later,
+just replace `SleepTimer Watch App/Assets.xcassets/AppIcon.appiconset/AppIcon-watch-1024.png`.
 
 ## Known limitation of this change
 
