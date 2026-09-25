@@ -12,7 +12,7 @@ struct RunningView: View {
                 Spacer()
 
                 VStack(spacing: 10) {
-                    Text("FALLING ASLEEP TO")
+                    Text("FALLING ASLEEP IN")
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                         .tracking(2)
                         .foregroundStyle(.white.opacity(0.4))
