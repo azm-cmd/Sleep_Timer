@@ -20,17 +20,29 @@ protocol ActivityControlling {
 
 #if canImport(ActivityKit)
 import ActivityKit
+import os
 
 /// Every call here is best-effort: Live Activities can be turned off
 /// system-wide or per-app in Settings, `Activity.request` can throw for
 /// reasons outside our control, and none of that may ever prevent the
-/// timer itself from starting, extending, or completing.
+/// timer itself from starting, extending, or completing. Every one of
+/// those "give up silently" paths also logs why, via the unified logging
+/// system — visible in Console.app on the device with no Xcode session
+/// attached, which matters here specifically because this controller has
+/// never been exercised on a real device or through a sideloaded install
+/// in this project's history; if Live Activities silently fail there,
+/// this is the only way to see why without guessing.
+private let activityLog = Logger(subsystem: "com.azm.sleeptimer", category: "LiveActivity")
+
 final class SleepTimerActivityController: ActivityControlling {
     private var activity: Activity<SleepTimerActivityAttributes>?
     private var startDate: Date?
 
     func start(startDate: Date, endDate: Date) {
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            activityLog.notice("start(): areActivitiesEnabled is false — skipping. Check Settings > [App] > Live Activities, and Settings > Face ID & Passcode > Allow Access When Locked > Live Activities.")
+            return
+        }
         self.startDate = startDate
         let state = SleepTimerActivityAttributes.ContentState(startDate: startDate, endDate: endDate)
         let content = ActivityContent(state: state, staleDate: endDate)
@@ -39,14 +51,17 @@ final class SleepTimerActivityController: ActivityControlling {
             // Reconnect to an activity that outlived a relaunch, rather
             // than dismissing and recreating it.
             activity = existing
+            activityLog.notice("start(): reconnected to an existing Activity (id: \(existing.id, privacy: .public)) rather than creating a new one.")
             Task { await existing.update(content) }
             return
         }
 
         do {
             activity = try Activity.request(attributes: SleepTimerActivityAttributes(), content: content)
+            activityLog.notice("start(): Activity.request succeeded (id: \(self.activity?.id ?? "?", privacy: .public)).")
         } catch {
             activity = nil
+            activityLog.error("start(): Activity.request threw and was swallowed — this is why nothing appears on-screen: \(String(describing: error), privacy: .public)")
         }
     }
 
