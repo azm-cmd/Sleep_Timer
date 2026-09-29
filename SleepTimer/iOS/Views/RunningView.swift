@@ -30,6 +30,11 @@ struct RunningView: View {
 
                 Spacer()
 
+                if let diagnostic = manager.liveActivityDiagnostic {
+                    LiveActivityDiagnosticBanner(message: diagnostic)
+                        .padding(.horizontal, 28)
+                }
+
                 VStack(spacing: 14) {
                     HStack(spacing: 14) {
                         Button {
@@ -80,5 +85,32 @@ struct RunningView: View {
             }
             .presentationDetents([.height(300)])
         }
+    }
+}
+
+/// Shown only when the Live Activity failed to start for the current timer.
+/// The timer itself is unaffected either way - this exists purely so the
+/// reason is readable from the device alone, since a sideloaded install has
+/// no Xcode session and no Mac to read Console.app from.
+private struct LiveActivityDiagnosticBanner: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.yellow)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Live Activity didn't start")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.85))
+                Text(message)
+                    .font(.system(size: 11, weight: .regular, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.55))
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.08)))
     }
 }

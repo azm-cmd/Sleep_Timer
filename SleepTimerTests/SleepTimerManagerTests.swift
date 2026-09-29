@@ -21,6 +21,7 @@ final class SpyActivityController: ActivityControlling {
     private(set) var endCount = 0
     private(set) var lastStartDate: Date?
     private(set) var lastEndDate: Date?
+    var lastFailureReason: String?
 
     func start(startDate: Date, endDate: Date) {
         startCount += 1
@@ -284,6 +285,35 @@ final class SleepTimerManagerTests: XCTestCase {
         XCTAssertTrue(relaunched.isRunning)
         XCTAssertEqual(activitySpy.startCount, 1)
         XCTAssertEqual(activitySpy.endCount, 0)
+    }
+
+    /// Surfacing the activity controller's failure reason is the one way a
+    /// sideloaded install (no Xcode, no Mac, no Console.app) can find out
+    /// why a Live Activity never appeared for a running timer.
+    func testStartSurfacesActivityControllerFailureReason() {
+        activityController.lastFailureReason = "areActivitiesEnabled is false"
+
+        manager.start(duration: 600)
+
+        XCTAssertEqual(manager.liveActivityDiagnostic, "areActivitiesEnabled is false")
+    }
+
+    func testStartWithNoFailureLeavesDiagnosticNil() {
+        activityController.lastFailureReason = nil
+
+        manager.start(duration: 600)
+
+        XCTAssertNil(manager.liveActivityDiagnostic)
+    }
+
+    func testCancelClearsLiveActivityDiagnostic() {
+        activityController.lastFailureReason = "some failure"
+        manager.start(duration: 600)
+        XCTAssertNotNil(manager.liveActivityDiagnostic)
+
+        manager.cancel()
+
+        XCTAssertNil(manager.liveActivityDiagnostic)
     }
 
     // MARK: - Helpers

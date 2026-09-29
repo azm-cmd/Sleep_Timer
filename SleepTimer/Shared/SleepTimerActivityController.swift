@@ -16,6 +16,12 @@ protocol ActivityControlling {
     func update(endDate: Date)
     /// Ends and dismisses the Live Activity. A no-op if none is active.
     func end()
+    /// Why the most recent `start()` didn't result in a visible Live
+    /// Activity, if it didn't - nil on success. Surfaced in RunningView so
+    /// this is diagnosable from the device alone: sideloaded installs have
+    /// no Xcode session and no Mac to read Console.app from, so a silently
+    /// swallowed `Activity.request` failure would otherwise be invisible.
+    var lastFailureReason: String? { get }
 }
 
 #if canImport(ActivityKit)
@@ -37,12 +43,15 @@ private let activityLog = Logger(subsystem: "com.azm.sleeptimer", category: "Liv
 final class SleepTimerActivityController: ActivityControlling {
     private var activity: Activity<SleepTimerActivityAttributes>?
     private var startDate: Date?
+    private(set) var lastFailureReason: String?
 
     func start(startDate: Date, endDate: Date) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            lastFailureReason = "Live Activities are disabled (Settings > Face ID & Passcode > Allow Access When Locked, or Settings > Sleep Timer)."
             activityLog.notice("start(): areActivitiesEnabled is false — skipping. Check Settings > [App] > Live Activities, and Settings > Face ID & Passcode > Allow Access When Locked > Live Activities.")
             return
         }
+        lastFailureReason = nil
         self.startDate = startDate
         let state = SleepTimerActivityAttributes.ContentState(startDate: startDate, endDate: endDate)
         let content = ActivityContent(state: state, staleDate: endDate)
@@ -61,7 +70,9 @@ final class SleepTimerActivityController: ActivityControlling {
             activityLog.notice("start(): Activity.request succeeded (id: \(self.activity?.id ?? "?", privacy: .public)).")
         } catch {
             activity = nil
-            activityLog.error("start(): Activity.request threw and was swallowed — this is why nothing appears on-screen: \(String(describing: error), privacy: .public)")
+            let description = String(describing: error)
+            lastFailureReason = description
+            activityLog.error("start(): Activity.request threw and was swallowed — this is why nothing appears on-screen: \(description, privacy: .public)")
         }
     }
 
@@ -84,6 +95,7 @@ final class SleepTimerActivityController: ActivityControlling {
 /// `SleepTimerManager`'s default initializer parameter compiles
 /// identically everywhere this file is shared.
 final class SleepTimerActivityController: ActivityControlling {
+    var lastFailureReason: String? { nil }
     func start(startDate: Date, endDate: Date) {}
     func update(endDate: Date) {}
     func end() {}

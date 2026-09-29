@@ -41,6 +41,12 @@ final class SleepTimerManager: ObservableObject {
     /// acknowledges the finished screen (or starts a new timer). Never set
     /// by `cancel()` — cancelling is a deliberate user action, not completion.
     @Published private(set) var didFinish = false
+    /// Why the Live Activity didn't appear for the current timer, if it
+    /// didn't - nil once one is showing (or on platforms without
+    /// ActivityKit, where it's always nil). Read from `activityController`
+    /// right after every `start()` call, since a sideloaded install has no
+    /// way to read Console.app to find this out otherwise.
+    @Published private(set) var liveActivityDiagnostic: String?
 
     private let defaults: UserDefaults
     private let mediaController: MediaPausing
@@ -92,6 +98,7 @@ final class SleepTimerManager: ObservableObject {
         persist()
         scheduleCompletionNotification()
         activityController.start(startDate: start, endDate: end)
+        liveActivityDiagnostic = activityController.lastFailureReason
     }
 
     func addTime(_ interval: TimeInterval) {
@@ -108,6 +115,7 @@ final class SleepTimerManager: ObservableObject {
         persist()
         cancelCompletionNotification()
         activityController.end()
+        liveActivityDiagnostic = nil
     }
 
     /// Call once the person has seen the "finished" screen (or is starting
@@ -153,6 +161,7 @@ final class SleepTimerManager: ObservableObject {
             complete()
         } else {
             activityController.start(startDate: state.startDate, endDate: state.endDate)
+            liveActivityDiagnostic = activityController.lastFailureReason
         }
     }
 
@@ -162,6 +171,7 @@ final class SleepTimerManager: ObservableObject {
         cancelCompletionNotification()
         mediaController.pauseCurrentMedia()
         activityController.end()
+        liveActivityDiagnostic = nil
         didFinish = true
     }
 
