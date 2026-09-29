@@ -191,12 +191,31 @@ jobs:
             echo "::error::NSSupportsLiveActivities is not set (or not YES) in the main app's Info.plist — Live Activities will not work even with the extension embedded."
 
           echo
-          echo "Main app CFBundleVersion (should equal this run's GITHUB_RUN_NUMBER, $GITHUB_RUN_NUMBER, confirming the override below actually took effect):"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_PATH/Info.plist" 2>/dev/null || \
-            echo "::warning::Could not read CFBundleVersion from the main app's Info.plist"
-          echo "Extension CFBundleVersion (must match the main app's, or iOS may treat them as mismatched builds):"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$INFO_PLIST" 2>/dev/null || \
-            echo "::warning::Could not read CFBundleVersion from the extension's Info.plist"
+          echo "Main app CFBundleVersion (should equal this run's GITHUB_RUN_NUMBER, $GITHUB_RUN_NUMBER):"
+          APP_BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_PATH/Info.plist" 2>/dev/null || true)"
+          echo "$APP_BUNDLE_VERSION"
+          echo "Extension CFBundleVersion (must match the main app's, or Xcode itself refuses/warns and iOS may misregister the extension):"
+          EXTENSION_BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$INFO_PLIST" 2>/dev/null || true)"
+          echo "$EXTENSION_BUNDLE_VERSION"
+
+          # This exact mismatch (extension's CFBundleVersion hardcoded to a
+          # literal "1" in SleepTimerWidgets/Info.plist instead of the
+          # $(CURRENT_PROJECT_VERSION) variable every other target picks up
+          # automatically) is what caused every sideloaded build before this
+          # fix to carry a permanently stale build number for the widget
+          # extension specifically, regardless of what the app's own version
+          # was - a real, confirmed contributor to Live Activities silently
+          # never appearing. Comparing here, not just printing, so a
+          # regression fails loudly instead of passing as a mere Xcode
+          # warning buried in the full build log.
+          if [ -z "$APP_BUNDLE_VERSION" ] || [ -z "$EXTENSION_BUNDLE_VERSION" ]; then
+            echo "::warning::Could not read CFBundleVersion from one or both Info.plists — skipping the match check."
+          elif [ "$APP_BUNDLE_VERSION" != "$EXTENSION_BUNDLE_VERSION" ]; then
+            echo "::error::CFBundleVersion mismatch: main app is '$APP_BUNDLE_VERSION', extension is '$EXTENSION_BUNDLE_VERSION'. They must match — Xcode itself warns about exactly this, and it can cause iOS to misregister the extension."
+            exit 1
+          else
+            echo "Confirmed: main app and extension CFBundleVersion match ($APP_BUNDLE_VERSION)."
+          fi
 
       - name: Package unsigned .ipa from the archive
         run: |
