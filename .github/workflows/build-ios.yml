@@ -110,6 +110,19 @@ jobs:
           # so the watch target does not need its own signing configuration here.
           # -destination "generic/platform=iOS" builds for a real device (arm64),
           # not the Simulator, and needs no physical device or simulator attached.
+          #
+          # CURRENT_PROJECT_VERSION is overridden to this run's unique,
+          # monotonically increasing GITHUB_RUN_NUMBER (applies to every
+          # target in the build graph, main app and the SleepTimerWidgets
+          # extension alike, since it's a single xcodebuild invocation) —
+          # the checked-in project has it hardcoded to "1" for every target,
+          # which every sideloaded rebuild this project has ever produced has
+          # therefore shared. A widget/Live Activity extension's registration
+          # with iOS is known to go stale across reinstalls when the build
+          # number never changes, particularly for sideloaded (personal-team)
+          # installs that keep reusing the same signing identity - this
+          # override is what actually forces each install to be recognized
+          # as new.
           xcodebuild archive \
             -project "$PROJECT_PATH" \
             -scheme "$SCHEME" \
@@ -122,6 +135,7 @@ jobs:
             AD_HOC_CODE_SIGNING_ALLOWED=NO \
             DEVELOPMENT_TEAM="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
             2>&1 | tee "$LOG_DIR/archive.log"
 
       - name: Verify archive was produced
@@ -175,6 +189,14 @@ jobs:
           echo "Main app Info.plist NSSupportsLiveActivities:"
           /usr/libexec/PlistBuddy -c "Print :NSSupportsLiveActivities" "$APP_PATH/Info.plist" 2>/dev/null || \
             echo "::error::NSSupportsLiveActivities is not set (or not YES) in the main app's Info.plist — Live Activities will not work even with the extension embedded."
+
+          echo
+          echo "Main app CFBundleVersion (should equal this run's GITHUB_RUN_NUMBER, $GITHUB_RUN_NUMBER, confirming the override below actually took effect):"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_PATH/Info.plist" 2>/dev/null || \
+            echo "::warning::Could not read CFBundleVersion from the main app's Info.plist"
+          echo "Extension CFBundleVersion (must match the main app's, or iOS may treat them as mismatched builds):"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$INFO_PLIST" 2>/dev/null || \
+            echo "::warning::Could not read CFBundleVersion from the extension's Info.plist"
 
       - name: Package unsigned .ipa from the archive
         run: |
