@@ -1,0 +1,163 @@
+name: Build Live Activity Probe IPA (Unsigned)
+
+# Manual only. This is a deliberately minimal, standalone app - one button
+# that starts a bare Live Activity, nothing else - used to isolate whether a
+# Live Activity can render at all through this project's sideloading setup
+# (Sideloadly, free/personal-team signing), independent of anything in the
+# main Sleep Timer app. See LiveActivityProbe/README.md.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-live-activity-probe-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROJECT_PATH: LiveActivityProbe/LiveActivityProbe.xcodeproj
+  SCHEME: LiveActivityProbe
+  CONFIGURATION: Release
+  APP_NAME: LiveActivityProbe
+  EXTENSION_NAME: LiveActivityProbeWidget
+  ARCHIVE_PATH: build/probe/LiveActivityProbe.xcarchive
+  IPA_DIR: build/probe
+  IPA_PATH: build/probe/LiveActivityProbe.ipa
+  LOG_DIR: build/probe/logs
+
+jobs:
+  build:
+    name: Archive & package unsigned probe IPA
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select an Xcode 26.x toolchain (iOS 26 SDK required)
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          candidates=(/Applications/Xcode_*.app)
+          shopt -u nullglob
+
+          stable_candidates=()
+          for candidate in "${candidates[@]}"; do
+            case "$candidate" in
+              *[Bb]eta*) continue ;;
+            esac
+            stable_candidates+=("$candidate")
+          done
+
+          if [ "${#stable_candidates[@]}" -eq 0 ]; then
+            echo "::error::No non-beta /Applications/Xcode_*.app installations found."
+            exit 1
+          fi
+
+          SELECTED_XCODE="$(printf '%s\n' "${stable_candidates[@]}" | sort -V | tail -n 1)"
+          echo "Selecting: $SELECTED_XCODE"
+          sudo xcode-select -s "$SELECTED_XCODE"
+
+      - name: Show build environment
+        run: |
+          xcodebuild -version
+          echo
+          xcodebuild -project "$PROJECT_PATH" -list
+
+      - name: Create output directories
+        run: mkdir -p "$IPA_DIR" "$LOG_DIR"
+
+      - name: Archive (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project "$PROJECT_PATH" \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -destination "generic/platform=iOS" \
+            -archivePath "$ARCHIVE_PATH" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            2>&1 | tee "$LOG_DIR/archive.log"
+
+      - name: Verify archive and extension embedding
+        run: |
+          set -euo pipefail
+          APP_PATH="$ARCHIVE_PATH/Products/Applications/${APP_NAME}.app"
+          EXTENSION_PATH="$APP_PATH/PlugIns/${EXTENSION_NAME}.appex"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "::error::Expected app bundle at $APP_PATH was not found."
+            exit 1
+          fi
+          if [ ! -d "$EXTENSION_PATH" ]; then
+            echo "::error::$EXTENSION_NAME.appex was not found at $EXTENSION_PATH."
+            find "$APP_PATH" -maxdepth 2
+            exit 1
+          fi
+          echo "Confirmed: extension embedded at $EXTENSION_PATH"
+
+          APP_BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_PATH/Info.plist" 2>/dev/null || true)"
+          EXTENSION_BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$EXTENSION_PATH/Info.plist" 2>/dev/null || true)"
+          echo "App CFBundleVersion: $APP_BUNDLE_VERSION"
+          echo "Extension CFBundleVersion: $EXTENSION_BUNDLE_VERSION"
+          if [ "$APP_BUNDLE_VERSION" != "$EXTENSION_BUNDLE_VERSION" ]; then
+            echo "::error::CFBundleVersion mismatch: app '$APP_BUNDLE_VERSION' vs extension '$EXTENSION_BUNDLE_VERSION'."
+            exit 1
+          fi
+
+          echo "Main app NSSupportsLiveActivities:"
+          /usr/libexec/PlistBuddy -c "Print :NSSupportsLiveActivities" "$APP_PATH/Info.plist"
+          echo "Extension NSExtensionPointIdentifier:"
+          /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$EXTENSION_PATH/Info.plist"
+
+      - name: Package unsigned .ipa from the archive
+        run: |
+          set -euo pipefail
+          APP_PATH="$ARCHIVE_PATH/Products/Applications/${APP_NAME}.app"
+          PACKAGE_ROOT="$(mktemp -d)"
+          PAYLOAD_DIR="$PACKAGE_ROOT/Payload"
+          mkdir -p "$PAYLOAD_DIR"
+          cp -R "$APP_PATH" "$PAYLOAD_DIR/"
+          (cd "$PACKAGE_ROOT" && zip -r -y -q "$GITHUB_WORKSPACE/$IPA_PATH" "Payload")
+
+      - name: Verify IPA and extension survived packaging
+        run: |
+          set -euo pipefail
+          if [ ! -f "$IPA_PATH" ]; then
+            echo "::error::Expected IPA at $IPA_PATH was not produced."
+            exit 1
+          fi
+          ls -la "$IPA_PATH"
+          if unzip -l "$IPA_PATH" | grep -q "Payload/${APP_NAME}.app/PlugIns/${EXTENSION_NAME}.appex/"; then
+            echo "Confirmed: extension present in the packaged IPA."
+          else
+            echo "::error::Extension missing from the packaged IPA."
+            exit 1
+          fi
+
+      - name: Upload IPA artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LiveActivityProbe-ipa
+          path: ${{ env.IPA_PATH }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LiveActivityProbe-build-logs
+          path: |
+            build/probe/logs/**
+          if-no-files-found: warn
+          retention-days: 14
