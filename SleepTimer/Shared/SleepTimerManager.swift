@@ -13,24 +13,29 @@ import UserNotifications
 /// on every tick. This is what makes the countdown correct after the app is
 /// backgrounded, the screen locks, or the process is relaunched.
 ///
-/// That's also why the 1-second `ticker` below is *not* what makes
-/// `complete()` (and the media pause inside it) reliable while backgrounded:
-/// locking the screen backgrounds this app the same way switching apps
-/// does, and a plain app with no active background mode is suspended
-/// shortly after - zero CPU time, so the ticker simply stops. There is no
-/// Apple-supported way for an app like this one to guarantee running code
-/// at an exact future time while suspended (investigated in depth in
-/// README.md under "Background execution: what's actually possible" -
-/// `BGTaskScheduler` is opportunistic and not time-precise, a background
-/// local notification doesn't hand the app execution time, and the
-/// `audio` background mode is only for apps genuinely playing continuous
-/// audio, which this one isn't, per App Review Guideline 2.5.4). Read that
-/// section before reaching for any of those as "the fix" - the actual fix
-/// already exists below: every expiry path (`tick`'s `checkForExpiry`, and
-/// `refreshFromPersistence`/`init`'s `syncAfterRestoringState`) funnels
-/// through the same `complete()`, so the pause and the finished state are
-/// always caught up exactly once, as soon as the app is next foregrounded,
-/// even though that isn't necessarily the literal instant of expiry.
+/// **Why the 1-second `ticker` can now actually fire while backgrounded:**
+/// a plain app with no active background mode is suspended shortly after
+/// being backgrounded — zero CPU time, so the ticker would simply stop,
+/// and neither it nor the pause inside `complete()` could run again until
+/// the app was next foregrounded (investigated at length in README.md
+/// under "Background execution: what's actually possible" — BGTaskScheduler
+/// is opportunistic and not time-precise, and a local notification doesn't
+/// hand the app any execution time of its own). `start`/`addTime` now call
+/// `mediaController.beginBackgroundKeepAlive()`, which keeps a genuinely
+/// active (silent, mixing) `AVAudioSession` running for exactly as long as
+/// a timer is active — the same `audio` background-mode exemption a
+/// podcast app relies on to keep decoding in the background, which keeps
+/// this process's *entire* run loop alive, not just audio code. That mode
+/// was avoided earlier purely over an App Store review-policy risk
+/// (Guideline 2.5.4); since this app is sideloaded and never submitted for
+/// review, that risk doesn't apply, and the OS mechanism itself is
+/// unchanged either way. If the keep-alive ever fails to start (Live
+/// Activities-style best-effort — see `MediaController`), every expiry
+/// path (`tick`'s `checkForExpiry`, and `refreshFromPersistence`/`init`'s
+/// `syncAfterRestoringState`) still funnels through the same `complete()`,
+/// so the pause and the finished state are still always caught up exactly
+/// once, as soon as the app is next foregrounded, the same fallback this
+/// relied on before the keep-alive existed.
 @MainActor
 final class SleepTimerManager: ObservableObject {
     static let shared = SleepTimerManager()
@@ -99,6 +104,7 @@ final class SleepTimerManager: ObservableObject {
         scheduleCompletionNotification()
         activityController.start(startDate: start, endDate: end)
         liveActivityDiagnostic = activityController.lastFailureReason
+        mediaController.beginBackgroundKeepAlive()
     }
 
     func addTime(_ interval: TimeInterval) {
@@ -116,6 +122,7 @@ final class SleepTimerManager: ObservableObject {
         cancelCompletionNotification()
         activityController.end()
         liveActivityDiagnostic = nil
+        mediaController.endBackgroundKeepAlive()
     }
 
     /// Call once the person has seen the "finished" screen (or is starting
@@ -153,8 +160,9 @@ final class SleepTimerManager: ObservableObject {
     /// Called right after `restoreState()` (app launch or reactivation).
     /// Either completes a timer whose end date already passed, or - for one
     /// still running - makes sure the Live Activity is showing and current,
-    /// since it may have been lost (process killed) or never started
-    /// (Live Activities were off when the timer began).
+    /// and the background keep-alive is (re-)running, since both are
+    /// per-process runtime state that a relaunch (not just a reactivation)
+    /// loses entirely.
     private func syncAfterRestoringState(at date: Date) {
         guard let state else { return }
         if state.isExpired(asOf: date) {
@@ -162,6 +170,7 @@ final class SleepTimerManager: ObservableObject {
         } else {
             activityController.start(startDate: state.startDate, endDate: state.endDate)
             liveActivityDiagnostic = activityController.lastFailureReason
+            mediaController.beginBackgroundKeepAlive()
         }
     }
 

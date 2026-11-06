@@ -300,6 +300,35 @@ the *automatic* pause at expiry still only fires when the app is next
 foreground - this only makes the "something went wrong, let me fix it
 without fully unlocking" path faster.
 
+**Update, superseding the "Conclusion: no" above:** that conclusion was
+scoped to an app that has to pass App Store review, which this one no
+longer does — it's sideloaded (Sideloadly/AltStore/SideStore, a personal
+Apple ID) and never submitted. The `AVAudioSession` background audio mode
+bullet above was ruled out purely over
+[Guideline 2.5.4](https://developer.apple.com/app-store/review/guidelines/)
+— a *human reviewer's* policy judgment that a human reviewer will never
+make here. The underlying OS mechanism it describes was never in question
+and hasn't changed: declaring `UIBackgroundModes: audio` and keeping a
+genuinely active `AVAudioSession` running *does* exempt a process from
+suspension, for as long as that session stays active, which is exactly
+the audio engine both this and a white-noise app rely on. `start`/`addTime`
+now call `MediaController.beginBackgroundKeepAlive()`, which runs a
+`.mixWithOthers`, true-digital-silence loop for exactly the life of the
+running timer — inaudible and non-interrupting, so whatever the person is
+actually listening to is unaffected until the timer legitimately ends. At
+that point `pauseCurrentMedia()` is what's now running on schedule even
+while locked or backgrounded, because the process backing it was never
+suspended in the first place: it switches to the same exclusive,
+interrupting session described earlier in this section, which is the part
+that was always correct — only the "can it run at all while backgrounded"
+half was the actual gap, and it's now closed for this deployment
+specifically. See `MediaController.swift` for the full implementation and
+reasoning. The notification-triggered Shortcuts automation (below) and the
+Live Activity buttons remain in place as fallbacks if the keep-alive is
+ever unavailable (Live Activities/audio disabled in Settings, an error
+starting the session, etc.) — every expiry path still funnels through the
+same `complete()` regardless of which path actually ran the pause.
+
 ### Live Activity
 
 A running timer shows a Live Activity on the Lock Screen and in the Dynamic
@@ -433,6 +462,11 @@ drift rather than a discrete theme swap. The setup screen uses a constant
 - Local notification on timer completion
 - System media pause on completion (see "Media pause on completion" above),
   and a calm "Good Night" finished state instead of a stuck 00:00
+- Background audio keep-alive (`UIBackgroundModes: audio`, a silent
+  `.mixWithOthers` loop for the life of a running timer) so that pause
+  fires automatically while locked/backgrounded, not only when the app is
+  next foregrounded — see the "Update, superseding the 'Conclusion: no'"
+  note under "Media pause on completion"
 - Live Activity (Lock Screen + Dynamic Island) for a running timer, with
   working +5 min / +10 min / Cancel controls — iPhone only, per this pass
 - "Pause Current Media" App Intent, discoverable via Siri/Spotlight/Shortcuts
@@ -576,3 +610,30 @@ embed step, or Info.plist entry. `UNUserNotificationCenter` authorization
 unlike camera/location/etc. — worth double-checking on the actual macOS
 runner's build log regardless, since that's exactly the kind of assumption
 that's cheap to get wrong and expensive to debug blind.
+
+**Background audio keep-alive (`MediaController.beginBackgroundKeepAlive`/
+`endBackgroundKeepAlive`, `INFOPLIST_KEY_UIBackgroundModes = audio`):**
+confirmed to actually compile on a real macOS CI runner before being
+reported as done (the whole `AVAudioEngine`/`AVAudioPlayerNode`/
+`AVAudioPCMBuffer` surface, `DispatchWorkItem` cancellation, and the
+`INFOPLIST_KEY_UIBackgroundModes` build-setting syntax were all new to this
+codebase, so this was the one pass's change most likely to have a Swift
+typo a Linux sandbox can't catch). What a CI compile *cannot* confirm,
+and genuinely needs a real device and real elapsed time to verify:
+- That the keep-alive actually survives real backgrounding/locking for the
+  full length of a timer, not just a few seconds — iOS's enforcement of the
+  `audio` background mode (does it keep rendering indefinitely, or does the
+  system ever reclaim it under memory/thermal pressure) is a runtime
+  behavior no static check can see.
+- That `.mixWithOthers` genuinely never audibly interrupts, ducks, or
+  glitches whatever's already playing when a timer starts — reasoned from
+  Apple's documented category semantics, not heard.
+- That the transition in `pauseCurrentMedia()` (deactivate → reconfigure to
+  exclusive → reactivate) reliably triggers the interruption in the
+  backgrounded case specifically, not just the already-confirmed foreground
+  case.
+- Whether Control Center's audio picker shows "Sleep Timer" as a source
+  while a timer is running, flagged honestly as a cosmetic unknown when
+  this was proposed, since it depends on `MPNowPlayingInfoCenter` behavior
+  this app deliberately never populates.
+

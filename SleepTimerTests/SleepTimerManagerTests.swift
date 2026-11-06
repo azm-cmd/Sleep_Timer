@@ -6,9 +6,19 @@ import XCTest
 /// device, media session, or anything actually playing.
 final class SpyMediaController: MediaPausing {
     private(set) var pauseCount = 0
+    private(set) var beginKeepAliveCount = 0
+    private(set) var endKeepAliveCount = 0
 
     func pauseCurrentMedia() {
         pauseCount += 1
+    }
+
+    func beginBackgroundKeepAlive() {
+        beginKeepAliveCount += 1
+    }
+
+    func endBackgroundKeepAlive() {
+        endKeepAliveCount += 1
     }
 }
 
@@ -314,6 +324,68 @@ final class SleepTimerManagerTests: XCTestCase {
         manager.cancel()
 
         XCTAssertNil(manager.liveActivityDiagnostic)
+    }
+
+    // MARK: - Background keep-alive lifecycle
+
+    /// Starting a timer begins the keep-alive exactly once — this is what
+    /// lets the eventual pause (and the tick that drives it) fire on time
+    /// even while backgrounded, not just the next time the app reopens.
+    func testStartBeginsBackgroundKeepAlive() {
+        manager.start(duration: 600)
+
+        XCTAssertEqual(mediaController.beginKeepAliveCount, 1)
+        XCTAssertEqual(mediaController.endKeepAliveCount, 0)
+    }
+
+    /// addTime (+5 min/+10 min) must not restart the keep-alive — it's
+    /// already running from start(), and MediaController's own
+    /// beginBackgroundKeepAlive() is documented idempotent, but the manager
+    /// shouldn't even ask again.
+    func testAddTimeDoesNotRestartBackgroundKeepAlive() {
+        manager.start(duration: 600)
+        manager.addTime(5 * 60)
+
+        XCTAssertEqual(mediaController.beginKeepAliveCount, 1)
+    }
+
+    /// Cancelling ends the keep-alive without ever pausing anything -
+    /// cancellation is a deliberate user action, not completion, and must
+    /// stay that way even with the keep-alive in the picture.
+    func testCancelEndsBackgroundKeepAliveWithoutPausing() {
+        manager.start(duration: 600)
+        manager.cancel()
+
+        XCTAssertEqual(mediaController.endKeepAliveCount, 1)
+        XCTAssertEqual(mediaController.pauseCount, 0)
+    }
+
+    /// Natural completion goes through pauseCurrentMedia(), which folds its
+    /// own teardown of the keep-alive into the same exclusive-session
+    /// transition - the manager itself must not also call
+    /// endBackgroundKeepAlive() separately, or it would be torn down twice.
+    func testCompletionPausesWithoutSeparatelyEndingKeepAlive() {
+        manager.start(duration: 600)
+        rewritePersistedEndDate(to: Date().addingTimeInterval(-1))
+
+        manager.refreshFromPersistence()
+
+        XCTAssertEqual(mediaController.pauseCount, 1)
+        XCTAssertEqual(mediaController.endKeepAliveCount, 0)
+    }
+
+    /// Relaunching while a timer is still running must restart the
+    /// keep-alive, the same way it re-syncs the Live Activity - both are
+    /// per-process runtime state a cold relaunch loses entirely.
+    func testRelaunchWhileStillRunningRestartsBackgroundKeepAlive() {
+        manager.start(duration: 600)
+
+        let spy = SpyMediaController()
+        let activitySpy = SpyActivityController()
+        let relaunched = SleepTimerManager(defaults: defaults, mediaController: spy, activityController: activitySpy)
+
+        XCTAssertTrue(relaunched.isRunning)
+        XCTAssertEqual(spy.beginKeepAliveCount, 1)
     }
 
     // MARK: - Helpers
