@@ -191,6 +191,11 @@ jobs:
             echo "::error::NSSupportsLiveActivities is not set (or not YES) in the main app's Info.plist — Live Activities will not work even with the extension embedded."
 
           echo
+          echo "Main app Info.plist UIBackgroundModes (must contain 'audio' as a real array entry, not a literal string, or the background keep-alive cannot work at all):"
+          /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$APP_PATH/Info.plist" 2>&1 || \
+            echo "::error::UIBackgroundModes is missing from the main app's Info.plist — the INFOPLIST_KEY_UIBackgroundModes='audio' build setting did not produce the expected array. The background keep-alive will never be exempted from suspension."
+
+          echo
           echo "Main app CFBundleVersion (should equal this run's GITHUB_RUN_NUMBER, $GITHUB_RUN_NUMBER):"
           APP_BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_PATH/Info.plist" 2>/dev/null || true)"
           echo "$APP_BUNDLE_VERSION"
