@@ -147,8 +147,9 @@ final class MediaController: MediaPausing {
             player.scheduleBuffer(buffer, completionHandler: nil)
             player.play()
 
-            let stopWork = DispatchWorkItem { [weak self] in
-                self?.stopPlaybackAndDeactivate()
+            let stopWork = DispatchWorkItem { [self] in
+                stopPlaybackAndDeactivate()
+                pendingStop = nil
             }
             pendingStop = stopWork
             DispatchQueue.main.asyncAfter(deadline: .now() + pauseSignalDuration, execute: stopWork)
