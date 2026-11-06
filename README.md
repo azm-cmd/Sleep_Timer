@@ -144,13 +144,30 @@ Playing" status; there's no public API for one app to *send* a pause
 command into a different app's session, and Sleep Timer isn't a media
 player with a Now Playing session of its own. The mechanism that actually
 works generically, without targeting or knowing about any specific app, is
-`AVAudioSession` interruption: briefly activating our own session with the
-`.playback` category asks iOS to interrupt whatever else is currently
-playing — the same system-level contract that silences background music for
-a phone call or a Siri request, and every App Store-compliant playback app
-must honor it. Deactivating again *without* `.notifyOthersOnDeactivation`
-keeps the interrupted app paused rather than inviting it to resume
-immediately.
+`AVAudioSession` interruption: briefly taking audio focus with an
+exclusive `.playback`-category session asks iOS to interrupt whatever else
+is currently playing — the same system-level contract that silences
+background music for a phone call, a Siri request, or switching to a
+different music app, and every App Store-compliant playback app must honor
+it.
+
+**Update:** an earlier version of this only activated the session
+(`setActive(true)`/`setActive(false)`, with no audio ever actually
+rendered) rather than genuinely playing anything. That's the weaker half
+of the same trick — real playback apps are only strictly required to honor
+an interruption caused by genuine concurrent audio engagement, not merely
+another session existing in the active state, and that gap is a plausible
+reason the pause could be less than fully reliable in practice.
+`MediaController` now runs a small `AVAudioEngine` that actually renders
+about two seconds of true digital silence (a zero-filled `AVAudioPCMBuffer`
+built in code, not a bundled audio file) before stopping and deactivating
+— inaudible, but genuine audio output, matching the same signal a real
+player switching in would send. Deactivating afterward *without*
+`.notifyOthersOnDeactivation` is what keeps the interrupted app paused
+rather than inviting it to resume immediately the moment the two seconds
+end — that option is specifically what produces the WhatsApp-voice-note
+style "resumes right after" behavior this is deliberately avoiding.
+
 
 #### Background execution: what's actually possible (investigated, not assumed)
 
