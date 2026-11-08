@@ -4,7 +4,12 @@ name: Build iOS IPA (Unsigned)
 # to be signed afterward on your own machine (e.g. with Sideloadly). There's
 # no reason to run it on every push, so it's dispatch-only.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      include_watch_app:
+        description: "Keep the embedded Watch app in the IPA (default: strip it, which is what Sideloadly needs). Also uploads the .xcarchive, for re-signing/installing from Xcode on a Mac."
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -223,6 +228,8 @@ jobs:
           fi
 
       - name: Package unsigned .ipa from the archive
+        env:
+          INCLUDE_WATCH_APP: ${{ inputs.include_watch_app }}
         run: |
           set -euo pipefail
           APP_PATH="$ARCHIVE_PATH/Products/Applications/${APP_NAME}.app"
@@ -256,8 +263,19 @@ jobs:
           # refuses the whole install with InvalidCompanionAppBundleIdentifier.
           # Removing the Watch app avoids that check entirely; the iPhone app is
           # unaffected either way.
+          #
+          # With include_watch_app=true (a Mac with Xcode available, which CAN
+          # pair/install the Watch app properly) it's kept instead.
           EMBEDDED_WATCH_APP="$PAYLOAD_DIR/${APP_NAME}.app/Watch"
-          if [ -d "$EMBEDDED_WATCH_APP" ]; then
+          if [ "${INCLUDE_WATCH_APP:-false}" = "true" ]; then
+            if [ -d "$EMBEDDED_WATCH_APP" ]; then
+              echo "include_watch_app=true: keeping embedded Watch app at $EMBEDDED_WATCH_APP"
+              find "$EMBEDDED_WATCH_APP" -maxdepth 1
+            else
+              echo "::error::include_watch_app=true but no Watch app was found at $EMBEDDED_WATCH_APP."
+              exit 1
+            fi
+          elif [ -d "$EMBEDDED_WATCH_APP" ]; then
             echo "Removing embedded Watch app before packaging: $EMBEDDED_WATCH_APP"
             rm -rf "$EMBEDDED_WATCH_APP"
           else
@@ -308,12 +326,23 @@ jobs:
             echo "::warning::assetutil could not inspect Assets.car; skipping icon content verification (file presence only)."
           fi
 
+      - name: Zip the .xcarchive (Watch-included builds only)
+        if: success() && inputs.include_watch_app
+        run: |
+          set -euo pipefail
+          # ditto preserves symlinks/resource forks that plain zip can mangle
+          # inside an .xcarchive; openable in Xcode > Window > Organizer.
+          ditto -c -k --sequesterRsrc --keepParent "$ARCHIVE_PATH" "$IPA_DIR/SleepTimer.xcarchive.zip"
+          ls -la "$IPA_DIR/SleepTimer.xcarchive.zip"
+
       - name: Upload IPA artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: SleepTimer-ipa
-          path: ${{ env.IPA_PATH }}
+          name: ${{ inputs.include_watch_app && 'SleepTimer-ipa-with-watch' || 'SleepTimer-ipa' }}
+          path: |
+            ${{ env.IPA_PATH }}
+            ${{ inputs.include_watch_app && format('{0}/SleepTimer.xcarchive.zip', env.IPA_DIR) || '' }}
           if-no-files-found: error
           retention-days: 14
 
